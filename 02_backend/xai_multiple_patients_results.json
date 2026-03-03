@@ -1,0 +1,229 @@
+[
+  {
+    "prediction": 1,
+    "probability": 0.9784716137623983,
+    "probability_no_diabetes": 0.02152838623760167,
+    "risk_level": "high",
+    "threshold_used": 0.3413765185837127,
+    "model_version": "1.0",
+    "timestamp": "2026-02-16T17:55:40.867591",
+    "shap_values": {
+      "contributions": [],
+      "base_value": 0.7971173575139276,
+      "feature_count": 0
+    },
+    "top_factors": [
+      {
+        "feature": "BMI",
+        "importance": 0.25,
+        "value": 35.0,
+        "impact": "increases"
+      },
+      {
+        "feature": "Poor General Health",
+        "importance": 0.23,
+        "value": 5,
+        "impact": "increases"
+      },
+      {
+        "feature": "High Blood Pressure",
+        "importance": 0.22,
+        "value": 1,
+        "impact": "increases"
+      },
+      {
+        "feature": "High Cholesterol",
+        "importance": 0.2,
+        "value": 1,
+        "impact": "increases"
+      },
+      {
+        "feature": "Age",
+        "importance": 0.18,
+        "value": 65,
+        "impact": "increases"
+      }
+    ],
+    "lime_explanation": {
+      "factors": [
+        {
+          "feature": "GenHlth > 0.61",
+          "importance": 0.13358687055518909
+        },
+        {
+          "feature": "Metabolic_Score > 0.69",
+          "importance": 0.07328336829793443
+        },
+        {
+          "feature": "CholCheck <= -0.59",
+          "importance": -0.0700721427955708
+        },
+        {
+          "feature": "BMI > 0.66",
+          "importance": 0.06767682309876336
+        },
+        {
+          "feature": "Age > 0.67",
+          "importance": 0.0649851407746612
+        },
+        {
+          "feature": "Income <= -0.66",
+          "importance": 0.043484810656768964
+        },
+        {
+          "feature": "Cardio_Risk_Weighted > 0.67",
+          "importance": 0.04063810437904538
+        },
+        {
+          "feature": "Cardio_Risk_Sum > 0.67",
+          "importance": 0.03456215569332479
+        },
+        {
+          "feature": "Sex > 0.79",
+          "importance": 0.025856127495064406
+        },
+        {
+          "feature": "HeartDiseaseorAttack > 0.59",
+          "importance": 0.023480515995439606
+        }
+      ],
+      "prediction": 0.9784716137623983
+    },
+    "patient_name": "High Risk Patient"
+  },
+  {
+    "prediction": 1,
+    "probability": 0.9510349486332655,
+    "probability_no_diabetes": 0.04896505136673446,
+    "risk_level": "high",
+    "threshold_used": 0.3413765185837127,
+    "model_version": "1.0",
+    "timestamp": "2026-02-16T17:55:49.665738",
+    "shap_values": {
+      "contributions": [],
+      "base_value": 0.7971173575139276,
+      "feature_count": 0
+    },
+    "top_factors": [
+      {
+        "feature": "High Blood Pressure",
+        "importance": 0.22,
+        "value": 1,
+        "impact": "increases"
+      },
+      {
+        "feature": "BMI",
+        "importance": 0.15,
+        "value": 28.0,
+        "impact": "increases"
+      }
+    ],
+    "lime_explanation": {
+      "factors": [
+        {
+          "feature": "Metabolic_Score > 0.69",
+          "importance": 0.07644858212958118
+        },
+        {
+          "feature": "-0.05 < GenHlth <= 0.61",
+          "importance": 0.07254636093357518
+        },
+        {
+          "feature": "Age > 0.67",
+          "importance": 0.06883329418474292
+        },
+        {
+          "feature": "CholCheck <= -0.59",
+          "importance": -0.06660973406143965
+        },
+        {
+          "feature": "Income <= -0.66",
+          "importance": 0.04524547823404889
+        },
+        {
+          "feature": "-0.74 < BMI <= -0.05",
+          "importance": -0.023269930841471862
+        },
+        {
+          "feature": "-0.70 < Sex <= 0.04",
+          "importance": -0.022198609677724777
+        },
+        {
+          "feature": "-0.02 < Cardio_Risk_Sum <= 0.67",
+          "importance": 0.02162320507582346
+        },
+        {
+          "feature": "Education <= -0.68",
+          "importance": 0.020271412497912922
+        },
+        {
+          "feature": "0.06 < Cardio_Risk_Weighted <= 0.67",
+          "importance": 0.014581093529145177
+        }
+      ],
+      "prediction": 0.9510349486332655
+    },
+    "patient_name": "Moderate Risk Patient"
+  },
+  {
+    "prediction": 1,
+    "probability": 0.6191087416511974,
+    "probability_no_diabetes": 0.38089125834880255,
+    "risk_level": "high",
+    "threshold_used": 0.3413765185837127,
+    "model_version": "1.0",
+    "timestamp": "2026-02-16T17:55:57.942872",
+    "shap_values": {
+      "contributions": [],
+      "base_value": 0.7971173575139276,
+      "feature_count": 0
+    },
+    "top_factors": [],
+    "lime_explanation": {
+      "factors": [
+        {
+          "feature": "GenHlth <= -0.71",
+          "importance": -0.14693983944140268
+        },
+        {
+          "feature": "Metabolic_Score > 0.69",
+          "importance": 0.07515686028722783
+        },
+        {
+          "feature": "CholCheck <= -0.59",
+          "importance": -0.07269154172608469
+        },
+        {
+          "feature": "Age > 0.67",
+          "importance": 0.06595680885574029
+        },
+        {
+          "feature": "BMI <= -0.74",
+          "importance": -0.059894106989253335
+        },
+        {
+          "feature": "Income <= -0.66",
+          "importance": 0.043831776600159425
+        },
+        {
+          "feature": "-0.69 < Cardio_Risk_Sum <= -0.02",
+          "importance": -0.027549443617123817
+        },
+        {
+          "feature": "-0.62 < Cardio_Risk_Weighted <= 0.06",
+          "importance": -0.022919548581361908
+        },
+        {
+          "feature": "Education <= -0.68",
+          "importance": 0.017792904748485685
+        },
+        {
+          "feature": "-0.64 < DiffWalk <= 0.06",
+          "importance": -0.012810690436180319
+        }
+      ],
+      "prediction": 0.6191087416511974
+    },
+    "patient_name": "Low Risk Patient"
+  }
+]

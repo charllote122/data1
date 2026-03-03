@@ -1,0 +1,43 @@
+{
+  "model_name": "Gradient Boosting",
+  "version": "v1",
+  "f1_score": 0.840349075365644,
+  "roc_auc": 0.8174380177623756,
+  "accuracy": 0.8449424471775465,
+  "feature_names": [
+    "HighBP",
+    "HighChol",
+    "CholCheck",
+    "BMI",
+    "Smoker",
+    "Stroke",
+    "HeartDiseaseorAttack",
+    "PhysActivity",
+    "Fruits",
+    "Veggies",
+    "HvyAlcoholConsump",
+    "AnyHealthcare",
+    "NoDocbcCost",
+    "GenHlth",
+    "MentHlth",
+    "PhysHlth",
+    "DiffWalk",
+    "Sex",
+    "Age",
+    "Education",
+    "Income"
+  ],
+  "n_features": 21,
+  "python_version": "3.12.4 (tags/v3.12.4:8e8a4ba, Jun  6 2024, 19:30:16) [MSC v.1940 64 bit (AMD64)]",
+  "sklearn_version": "1.4.2",
+  "export_date": "2026-02-26 15:34:55.484586",
+  "available_models": [
+    "model.pkl",
+    "model_joblib_nocomp.pkl",
+    "model_joblib_zlib.pkl",
+    "model_params.json",
+    "model_params.pkl",
+    "model_protocol4.pkl",
+    "model_protocol5.pkl"
+  ]
+}

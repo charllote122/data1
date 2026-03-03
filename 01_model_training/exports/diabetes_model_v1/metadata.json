@@ -1,0 +1,58 @@
+{
+  "model_name": "Gradient Boosting",
+  "version": "v1",
+  "f1_score": 0.840349075365644,
+  "roc_auc": 0.8174380177623756,
+  "accuracy": 0.8449424471775465,
+  "feature_names": [
+    "HighBP",
+    "HighChol",
+    "CholCheck",
+    "BMI",
+    "Smoker",
+    "Stroke",
+    "HeartDiseaseorAttack",
+    "PhysActivity",
+    "Fruits",
+    "Veggies",
+    "HvyAlcoholConsump",
+    "AnyHealthcare",
+    "NoDocbcCost",
+    "GenHlth",
+    "MentHlth",
+    "PhysHlth",
+    "DiffWalk",
+    "Sex",
+    "Age",
+    "Education",
+    "Income"
+  ],
+  "n_features": 21,
+  "top_features": [
+    {
+      "name": "HighBP",
+      "importance": 0.5234301935306584
+    },
+    {
+      "name": "GenHlth",
+      "importance": 0.5101335149300116
+    },
+    {
+      "name": "HighChol",
+      "importance": 0.31877501307089684
+    },
+    {
+      "name": "BMI",
+      "importance": 0.2928848014718192
+    },
+    {
+      "name": "Age",
+      "importance": 0.29196414522731406
+    }
+  ],
+  "class_names": [
+    "No Diabetes",
+    "Diabetes"
+  ],
+  "export_date": "2026-02-26 15:34:54.752311"
+}

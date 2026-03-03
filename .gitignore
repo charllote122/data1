@@ -1,0 +1,49 @@
+# Virtual Environment
+venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+media/
+
+# Backend specific
+02_backend/venv/
+02_backend/*.pyc
+02_backend/__pycache__/
+02_backend/db.sqlite3
+02_backend/media/
+
+# Frontend
+03_frontend/node_modules/
+03_frontend/dist/
+03_frontend/build/
+03_frontend/.vite/
+03_frontend/.env
+03_frontend/.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.production

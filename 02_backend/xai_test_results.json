@@ -1,0 +1,91 @@
+{
+  "prediction": 1,
+  "probability": 0.9434393469889129,
+  "probability_no_diabetes": 0.05656065301108715,
+  "risk_level": "high",
+  "threshold_used": 0.3413765185837127,
+  "model_version": "1.0",
+  "timestamp": "2026-02-16T17:55:28.943472",
+  "shap_values": {
+    "contributions": [],
+    "base_value": 0.7971173575139276,
+    "feature_count": 0
+  },
+  "top_factors": [
+    {
+      "feature": "BMI",
+      "importance": 0.25,
+      "value": 32.5,
+      "impact": "increases"
+    },
+    {
+      "feature": "Poor General Health",
+      "importance": 0.23,
+      "value": 4,
+      "impact": "increases"
+    },
+    {
+      "feature": "High Blood Pressure",
+      "importance": 0.22,
+      "value": 1,
+      "impact": "increases"
+    },
+    {
+      "feature": "High Cholesterol",
+      "importance": 0.2,
+      "value": 1,
+      "impact": "increases"
+    },
+    {
+      "feature": "Smoking",
+      "importance": 0.15,
+      "value": 1,
+      "impact": "increases"
+    }
+  ],
+  "lime_explanation": {
+    "factors": [
+      {
+        "feature": "-0.05 < GenHlth <= 0.61",
+        "importance": 0.07570081519276081
+      },
+      {
+        "feature": "CholCheck <= -0.59",
+        "importance": -0.07325078770666606
+      },
+      {
+        "feature": "Age > 0.67",
+        "importance": 0.06834662551264378
+      },
+      {
+        "feature": "Metabolic_Score > 0.69",
+        "importance": 0.06534922105649241
+      },
+      {
+        "feature": "Cardio_Risk_Weighted > 0.67",
+        "importance": 0.040601990287514045
+      },
+      {
+        "feature": "Income <= -0.66",
+        "importance": 0.03875153448300424
+      },
+      {
+        "feature": "Sex > 0.79",
+        "importance": 0.02278123678193864
+      },
+      {
+        "feature": "-0.64 < DiffWalk <= 0.06",
+        "importance": -0.022177852110764673
+      },
+      {
+        "feature": "-0.05 < BMI <= 0.66",
+        "importance": 0.02021118618951435
+      },
+      {
+        "feature": "-0.02 < Cardio_Risk_Sum <= 0.67",
+        "importance": 0.0189490423015593
+      }
+    ],
+    "prediction": 0.9434393469889129
+  }
+}

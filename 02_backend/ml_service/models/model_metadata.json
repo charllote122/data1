@@ -1,0 +1,10 @@
+{
+  "model_type": "StackingClassifier",
+  "features": 38,
+  "threshold": 0.3413765185837127,
+  "recall": 1.0,
+  "auc": 0.831254658315497,
+  "training_date": "2026-02-14 16:14:47",
+  "dataset_size": 70692,
+  "diabetes_cases": 35346
+}

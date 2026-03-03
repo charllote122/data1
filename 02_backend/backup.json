@@ -1,0 +1,12 @@
+INFO [SUCCESS] Successfully patched array validation functions for LightGBM compatibility
+INFO Looking for model files in: C:\Users\hp\OneDrive\Desktop\diabetes_app\02_backend\predictions\models
+INFO Loading model from: C:\Users\hp\OneDrive\Desktop\diabetes_app\02_backend\predictions\models\best_model.pkl
+INFO Loading scaler from: C:\Users\hp\OneDrive\Desktop\diabetes_app\02_backend\predictions\models\scaler.pkl
+INFO Loading features from: C:\Users\hp\OneDrive\Desktop\diabetes_app\02_backend\predictions\models\feature_names.json
+INFO Loading threshold from: C:\Users\hp\OneDrive\Desktop\diabetes_app\02_backend\predictions\models\optimal_threshold.txt
+INFO [SUCCESS] Initialized KernelExplainer for StackingClassifier
+INFO [SUCCESS] Model loaded successfully with 38 features
+INFO    Optimal threshold: 0.341
+INFO    Model type: StackingClassifier
+INFO    First 5 features: ['HighBP', 'HighChol', 'CholCheck', 'BMI', 'Smoker']
+INFO [SUCCESS] ModelLoader initialized successfully

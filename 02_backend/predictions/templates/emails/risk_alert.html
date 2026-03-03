@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Diabetes Risk Assessment</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: {
+                % if risk_level=='high' %
+            }
+
+            #e74c3c {
+                % elif risk_level=='moderate' %
+            }
+
+            #f39c12 {
+                % else %
+            }
+
+            #2ecc71 {
+                % endif %
+            }
+
+            ;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .content {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-top: none;
+        }
+
+        .risk-score {
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .factors {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .factor-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .factor-item:last-child {
+            border-bottom: none;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Diabetes Risk Assessment</h1>
+    </div>
+
+    <div class="content">
+        <h2>Your Risk Level: <strong>{{ risk_level|upper }}</strong></h2>
+
+        <div class="risk-score">
+            {{ risk_score|floatformat:1 }}%
+        </div>
+
+        <p>Based on your health information, our AI model predicts your risk of developing diabetes.</p>
+
+        {% if top_factors %}
+        <div class="factors">
+            <h3>Top Risk Factors:</h3>
+            {% for factor in top_factors %}
+            <div class="factor-item">
+                <strong>{{ factor.feature }}:</strong>
+                Value: {{ factor.value }}
+                (Importance: {{ factor.importance|floatformat:3 }})
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <h3>Recommendations:</h3>
+        <ul>
+            {% for rec in recommendations %}
+            <li>{{ rec }}</li>
+            {% endfor %}
+        </ul>
+
+        <div style="text-align: center;">
+            <a href="{{ dashboard_link }}" class="button">View Full Report</a>
+        </div>
+
+        <p style="margin-top: 20px; font-style: italic;">
+            This assessment is for informational purposes only. Please consult with a healthcare provider for medical
+            advice.
+        </p>
+    </div>
+
+    <div class="footer">
+        <p>© {% now "Y" %} Diabetes Risk Prediction App</p>
+        <p>You received this email because you requested a risk assessment.</p>
+    </div>
+</body>
+
+</html>
