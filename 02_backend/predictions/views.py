@@ -9,12 +9,16 @@ import logging
 import json
 from datetime import timedelta
 
-from .models import Prediction, UserHealthProfile, HealthTip, Goal, Medication, Symptom, Challenge
+from .models import (
+    Prediction, UserHealthProfile, HealthTip, Goal, Medication, Symptom, Challenge,
+    FamilyHistory  # Add this import
+)
 from .serializers import (
     PredictionSerializer, PredictionDetailSerializer, PredictionInputSerializer,
     PredictionHistorySerializer, UserHealthProfileSerializer, HealthTipSerializer,
     GoalSerializer, MedicationSerializer, SymptomSerializer, ChallengeSerializer,
-    SimulationRequestSerializer, FeedbackSerializer, ExportSerializer
+    SimulationRequestSerializer, FeedbackSerializer, ExportSerializer,
+    FamilyHistorySerializer  # Add this import
 )
 from .model_loader import model_loader
 from .services.simulation import RiskSimulator
@@ -244,7 +248,7 @@ class PredictionViewSet(viewsets.ModelViewSet):
             # Make prediction using model loader
             result = model_loader.predict(data)
             
-            # Create prediction object - removed risk_score as it doesn't exist in model
+            # Create prediction object
             prediction = Prediction.objects.create(
                 user=request.user,
                 patient_data=data,
@@ -310,7 +314,7 @@ class PredictionViewSet(viewsets.ModelViewSet):
             'prediction_id': prediction.id,
             'result': prediction.result,
             'probability': prediction.probability,
-            'risk_score': risk_score,  # Calculated from probability
+            'risk_score': risk_score,
             'top_factors': prediction.top_factors if prediction.top_factors else [],
             'shap_values': prediction.shap_values if prediction.shap_values else [],
             'lime_explanation': prediction.lime_explanation if prediction.lime_explanation else [],
@@ -410,6 +414,9 @@ class PredictionViewSet(viewsets.ModelViewSet):
             status='ACTIVE'
         )
         
+        # Get family history
+        family_history = FamilyHistory.objects.filter(user=user).order_by('-created_at')[:5]
+        
         # Calculate stats
         total_predictions = Prediction.objects.filter(user=user).count()
         high_risk_count = Prediction.objects.filter(user=user, result='HIGH').count()
@@ -423,6 +430,7 @@ class PredictionViewSet(viewsets.ModelViewSet):
             'today_medications': MedicationSerializer(today_meds, many=True).data,
             'recent_symptoms': SymptomSerializer(recent_symptoms, many=True).data,
             'active_challenges': ChallengeSerializer(active_challenges, many=True).data,
+            'recent_family_history': FamilyHistorySerializer(family_history, many=True).data,
             'stats': {
                 'total_predictions': total_predictions,
                 'high_risk_predictions': high_risk_count,
@@ -436,6 +444,50 @@ class PredictionViewSet(viewsets.ModelViewSet):
         }
         
         return Response(dashboard_data)
+
+    @action(detail=False, methods=['GET'], permission_classes=[IsAuthenticated])
+    def stats(self, request):
+        """Get prediction statistics for the user"""
+        user = request.user
+        
+        # Get all predictions
+        predictions = Prediction.objects.filter(user=user)
+        
+        # Calculate statistics
+        total_predictions = predictions.count()
+        high_risk = predictions.filter(result='HIGH').count()
+        moderate_risk = predictions.filter(result='MODERATE').count()
+        low_risk = predictions.filter(result='LOW').count()
+        
+        # Get average probability
+        avg_probability = predictions.aggregate(Avg('probability'))['probability__avg'] or 0
+        
+        # Get risk score (probability * 100)
+        avg_risk_score = avg_probability * 100
+        
+        # Get recent predictions
+        recent = predictions.order_by('-created_at')[:10]
+        
+        # Calculate trend (compare last 5 to previous 5)
+        recent_count = predictions.order_by('-created_at')[:5].count()
+        older_count = predictions.order_by('-created_at')[5:10].count()
+        trend = 'increasing' if recent_count > older_count else 'decreasing' if recent_count < older_count else 'stable'
+        
+        return Response({
+            'total_predictions': total_predictions,
+            'high_risk': high_risk,
+            'moderate_risk': moderate_risk,
+            'low_risk': low_risk,
+            'average_probability': float(avg_probability),
+            'average_risk_score': float(avg_risk_score),
+            'trend': trend,
+            'recent_predictions': PredictionSerializer(recent, many=True).data,
+            'distribution': {
+                'high': high_risk,
+                'moderate': moderate_risk,
+                'low': low_risk
+            }
+        })
 
 
 # ========== PUBLIC PREDICTION ENDPOINTS ==========
@@ -735,6 +787,127 @@ class ChallengeViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
+# ========== FAMILY HISTORY ENDPOINTS ==========
+class FamilyHistoryViewSet(viewsets.ModelViewSet):
+    """ViewSet for Family History"""
+    serializer_class = FamilyHistorySerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return FamilyHistory.objects.filter(user=self.request.user).order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @action(detail=False, methods=['POST'], permission_classes=[IsAuthenticated])
+    def bulk_delete(self, request):
+        """Bulk delete family members"""
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response(
+                {'error': 'No IDs provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        deleted_count = FamilyHistory.objects.filter(
+            user=request.user,
+            id__in=ids
+        ).delete()[0]
+        
+        return Response({
+            'message': f'{deleted_count} members deleted successfully',
+            'deleted_count': deleted_count
+        })
+    
+    @action(detail=False, methods=['GET'], permission_classes=[IsAuthenticated])
+    def genetic_risk(self, request):
+        """Get genetic risk profile based on family history"""
+        members = FamilyHistory.objects.filter(user=request.user)
+        
+        if not members.exists():
+            return Response({
+                'score': 0,
+                'level': 'low',
+                'highRiskCount': 0,
+                'immediateFamilyCount': 0,
+                'totalMembers': 0,
+                'recommendations': [
+                    'Add family members to see genetic risk profile',
+                    'Consider discussing family history with relatives',
+                    'Track conditions that run in your family'
+                ]
+            })
+        
+        # Calculate risk metrics
+        high_risk_conditions = members.filter(
+            condition__in=['diabetes_t1', 'diabetes_t2', 'heart_disease', 'stroke']
+        ).count()
+        
+        immediate_family = members.filter(
+            relationship__in=['parent', 'child', 'sibling']
+        ).count()
+        
+        # Calculate risk score
+        score = min(100, (high_risk_conditions * 15) + (immediate_family * 10))
+        
+        # Determine risk level
+        if score >= 70:
+            level = 'high'
+            recommendations = [
+                'Consult with a genetic counselor',
+                'Consider genetic testing',
+                'Regular screening recommended',
+                'Discuss preventive measures with doctor'
+            ]
+        elif score >= 40:
+            level = 'moderate'
+            recommendations = [
+                'Regular health check-ups',
+                'Maintain healthy lifestyle',
+                'Monitor for symptoms',
+                'Discuss family history with doctor'
+            ]
+        else:
+            level = 'low'
+            recommendations = [
+                'Continue healthy habits',
+                'Regular exercise',
+                'Balanced diet',
+                'Annual check-ups'
+            ]
+        
+        # Get conditions by relationship
+        conditions_by_relationship = {}
+        for rel_choice in FamilyHistory.RELATIONSHIP_CHOICES:
+            rel = rel_choice[0]
+            rel_members = members.filter(relationship=rel)
+            if rel_members.exists():
+                conditions_by_relationship[rel] = [
+                    {
+                        'condition': m.get_condition_display(),
+                        'condition_code': m.condition,
+                        'risk': m.risk,
+                        'age_at_diagnosis': m.age_at_diagnosis,
+                        'genetic_testing': m.genetic_testing,
+                        'genetic_markers': m.genetic_markers
+                    }
+                    for m in rel_members
+                ]
+
+        return Response({
+            'score': score,
+            'level': level,
+            'highRiskCount': high_risk_conditions,
+            'immediateFamilyCount': immediate_family,
+            'totalMembers': members.count(),
+            'recommendations': recommendations,
+            'conditions_by_relationship': conditions_by_relationship,
+            'conditions': list(members.values_list('condition', flat=True).distinct()),
+            'has_genetic_testing': members.filter(genetic_testing=True).exists(),
+            'genetically_tested_members': members.filter(genetic_testing=True).count()
+        })
+
+
 # ========== ANALYTICS ENDPOINTS ==========
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -771,6 +944,10 @@ def analytics_summary(request):
     from collections import Counter
     common_factors = Counter(all_factors).most_common(5)
     
+    # Family history stats
+    family_members = FamilyHistory.objects.filter(user=user).count()
+    high_risk_family = FamilyHistory.objects.filter(user=user, risk='high').count()
+    
     return Response({
         'total_predictions': total_predictions,
         'risk_distribution': {
@@ -783,7 +960,11 @@ def analytics_summary(request):
         'low_risk_percentage': (low_risk_count / total_predictions) * 100 if total_predictions > 0 else 0,
         'average_risk_30days': monthly_avg,
         'common_risk_factors': [{'factor': f, 'count': c} for f, c in common_factors],
-        'trend_direction': 'increasing' if monthly_avg and monthly_avg > 0.5 else 'decreasing'
+        'trend_direction': 'increasing' if monthly_avg and monthly_avg > 0.5 else 'decreasing',
+        'family_history_stats': {
+            'total_members': family_members,
+            'high_risk_members': high_risk_family
+        }
     })
 
 
@@ -821,6 +1002,7 @@ def export_data(request):
         'goals': list(Goal.objects.filter(user=user).values()),
         'medications': list(Medication.objects.filter(user=user).values()),
         'symptoms': list(Symptom.objects.filter(user=user).values()),
+        'family_history': list(FamilyHistory.objects.filter(user=user).values()),
         'export_date': timezone.now().isoformat()
     }
     

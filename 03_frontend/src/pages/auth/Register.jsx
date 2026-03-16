@@ -12,7 +12,6 @@ import {
     UserIcon,
     EnvelopeIcon,
     LockClosedIcon,
-    PhoneIcon,
     CalendarIcon,
     HeartIcon,
     EyeIcon,
@@ -22,12 +21,61 @@ import {
     CheckCircleIcon,
     XCircleIcon,
     DevicePhoneMobileIcon,
-    ClockIcon,
     ArrowRightIcon,
-    SparklesIcon,
-    PresentationChartBarIcon,
-    ScaleIcon
+    ScaleIcon,
+    ArrowsUpDownIcon,
+    ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
+import Card from '../../components/Card';
+import Badge from '../../components/Badge';
+
+// ============================================
+// Date formatting utilities
+// ============================================
+const formatDateForInput = (date) => {
+    if (!date) return '';
+    try {
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return '';
+        return d.toISOString().split('T')[0];
+    } catch (error) {
+        return '';
+    }
+};
+
+const formatDateForDisplay = (dateString) => {
+    if (!dateString) return 'Not provided';
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid date';
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    } catch (error) {
+        return 'Invalid date';
+    }
+};
+
+const calculateAge = (dob) => {
+    if (!dob) return null;
+    try {
+        const birthDate = new Date(dob);
+        if (isNaN(birthDate.getTime())) return null;
+
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age;
+    } catch (error) {
+        return null;
+    }
+};
 
 // Validation schema
 const schema = yup.object({
@@ -66,30 +114,31 @@ const schema = yup.object({
 
     dateOfBirth: yup
         .date()
-        .optional()
+        .nullable()
+        .transform((value, originalValue) => {
+            if (!originalValue) return null;
+            const date = new Date(originalValue);
+            return isNaN(date.getTime()) ? null : date;
+        })
         .max(new Date(), 'Date of birth cannot be in the future')
         .test('age', 'You must be at least 13 years old', (value) => {
             if (!value) return true;
-            const today = new Date();
-            const birthDate = new Date(value);
-            let age = today.getFullYear() - birthDate.getFullYear();
-            const monthDiff = today.getMonth() - birthDate.getMonth();
-            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                age--;
-            }
+            const age = calculateAge(value);
             return age >= 13;
         }),
 
     height: yup
         .number()
-        .optional()
+        .nullable()
+        .transform((value) => (isNaN(value) ? null : value))
         .min(50, 'Height must be between 50-300cm')
         .max(300, 'Height must be between 50-300cm')
         .typeError('Height must be a number'),
 
     weight: yup
         .number()
-        .optional()
+        .nullable()
+        .transform((value) => (isNaN(value) ? null : value))
         .min(20, 'Weight must be between 20-500kg')
         .max(500, 'Weight must be between 20-500kg')
         .typeError('Weight must be a number'),
@@ -110,17 +159,23 @@ const Register = () => {
     const [registrationSuccess, setRegistrationSuccess] = useState(false);
     const [registeredEmail, setRegisteredEmail] = useState('');
     const [bmi, setBmi] = useState(null);
+    const [validationErrors, setValidationErrors] = useState({});
 
     const {
         register,
         handleSubmit,
         watch,
-        setValue,
         trigger,
+        setValue,
         formState: { errors, isValid }
     } = useForm({
         resolver: yupResolver(schema),
-        mode: 'onChange'
+        mode: 'onChange',
+        defaultValues: {
+            dateOfBirth: null,
+            height: null,
+            weight: null
+        }
     });
 
     const watchFields = watch();
@@ -156,10 +211,10 @@ const Register = () => {
     const getBmiCategory = (bmi) => {
         if (!bmi) return null;
         const num = parseFloat(bmi);
-        if (num < 18.5) return { label: 'Underweight', color: 'text-blue-600', bg: 'bg-blue-50' };
-        if (num < 25) return { label: 'Healthy', color: 'text-green-600', bg: 'bg-green-50' };
-        if (num < 30) return { label: 'Overweight', color: 'text-yellow-600', bg: 'bg-yellow-50' };
-        return { label: 'Obese', color: 'text-red-600', bg: 'bg-red-50' };
+        if (num < 18.5) return { label: 'Underweight', variant: 'info' };
+        if (num < 25) return { label: 'Healthy', variant: 'success' };
+        if (num < 30) return { label: 'Overweight', variant: 'warning' };
+        return { label: 'Obese', variant: 'error' };
     };
 
     const nextStep = async () => {
@@ -192,7 +247,6 @@ const Register = () => {
                 return newErrors;
             });
         }
-        // Also clear date_of_birth field error if present
         if (field === 'dateOfBirth' && serverErrors.date_of_birth) {
             setServerErrors(prev => {
                 const newErrors = { ...prev };
@@ -205,13 +259,16 @@ const Register = () => {
     const onSubmit = async (data) => {
         setIsSubmitting(true);
         setServerErrors({});
+        setValidationErrors({});
 
         try {
-            // Format date properly for Django (YYYY-MM-DD)
+            // Format date properly
             let formattedDate = null;
             if (data.dateOfBirth) {
                 const date = new Date(data.dateOfBirth);
-                formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+                if (!isNaN(date.getTime())) {
+                    formattedDate = date.toISOString().split('T')[0];
+                }
             }
 
             const submitData = {
@@ -222,54 +279,58 @@ const Register = () => {
                 first_name: data.firstName?.trim() || '',
                 last_name: data.lastName?.trim() || '',
                 phone_number: data.phoneNumber ? data.phoneNumber.replace(/[\s()-]/g, '') : null,
-                date_of_birth: formattedDate, // Fixed format for Django
+                date_of_birth: formattedDate,
                 height: data.height ? parseFloat(data.height) : null,
                 weight: data.weight ? parseFloat(data.weight) : null
             };
 
-            console.log('📤 Submitting registration:', submitData);
+            console.log('📤 Submitting registration data:', submitData);
 
             const response = await api.register(submitData);
-
-            console.log('✅ Registration response:', response);
+            console.log('📥 Registration response:', response);
 
             setRegisteredEmail(data.email);
             setRegistrationSuccess(true);
             showNotification('success', 'Registration successful! Your account has been created.');
 
-            // Redirect to login after 3 seconds
-            setTimeout(() => {
-                navigate(ROUTES.LOGIN, {
-                    state: {
-                        email: data.email,
-                        message: 'Account created successfully! You can now log in.'
-                    }
-                });
-            }, 3000);
-
         } catch (error) {
             console.error('❌ Registration failed:', error);
 
+            // Log the full error object to see its structure
+            console.log('Error details:', JSON.stringify(error, null, 2));
+
+            // Handle different error formats
             if (error.errors) {
+                // Set server errors for form fields
                 setServerErrors(error.errors);
 
-                // Find the first error message to show
+                // Show first error as notification
                 const firstErrorKey = Object.keys(error.errors)[0];
                 const firstError = error.errors[firstErrorKey];
                 const errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
 
-                // If it's a duplicate username/email, show a helpful message
+                // Special messages for specific fields
                 if (firstErrorKey === 'username' && errorMessage.includes('already exists')) {
                     showNotification('error', 'Username already taken. Please choose another.');
                 } else if (firstErrorKey === 'email' && errorMessage.includes('already exists')) {
                     showNotification('error', 'Email already registered. Please use another or login.');
+                } else if (firstErrorKey === 'password') {
+                    showNotification('error', 'Password: ' + errorMessage);
                 } else if (firstErrorKey === 'date_of_birth') {
                     showNotification('error', 'Please select a valid date of birth.');
                 } else {
                     showNotification('error', errorMessage);
                 }
+            } else if (error.message) {
+                // Generic error message
+                showNotification('error', error.message);
+
+                // Try to parse validation errors from message
+                if (error.message.includes('Validation failed') && error.details) {
+                    setValidationErrors(error.details);
+                }
             } else {
-                showNotification('error', error.message || 'Registration failed. Please try again.');
+                showNotification('error', 'Registration failed. Please try again.');
             }
         } finally {
             setIsSubmitting(false);
@@ -279,61 +340,66 @@ const Register = () => {
     // Success Screen
     if (registrationSuccess) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center p-4">
-                <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center border border-green-100"
-                >
-                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <CheckCircleIcon className="w-10 h-10 text-green-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Registration Successful!</h2>
-                    <p className="text-gray-600 mb-4">
-                        We've created your account for:
-                    </p>
-                    <p className="font-semibold text-green-600 bg-green-50 py-3 px-4 rounded-lg mb-6 break-all">
-                        {registeredEmail}
-                    </p>
-                    <p className="text-sm text-gray-500 mb-6">
-                        You can now log in with your credentials.
-                    </p>
-                    <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
-                        <div className="w-4 h-4 border-2 border-gray-300 border-t-green-500 rounded-full animate-spin"></div>
-                        <span>Redirecting to login...</span>
-                    </div>
-                </motion.div>
+            <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50 flex items-center justify-center p-4">
+                <Card className="max-w-md w-full text-center p-8">
+                    <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", duration: 0.5 }}
+                    >
+                        <div className="w-20 h-20 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <CheckCircleIcon className="w-10 h-10 text-success-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Registration Successful! 🎉</h2>
+                        <p className="text-gray-600 mb-4">
+                            Your account has been created for:
+                        </p>
+                        <p className="font-semibold text-primary-600 bg-primary-50 py-3 px-4 rounded-lg mb-6 break-all">
+                            {registeredEmail}
+                        </p>
+                        <p className="text-sm text-gray-500 mb-6">
+                            You can now log in with your credentials.
+                        </p>
+
+                        <Link
+                            to={ROUTES.LOGIN}
+                            state={{
+                                email: registeredEmail,
+                                message: 'Account created successfully! You can now log in.'
+                            }}
+                            className="inline-flex items-center justify-center gap-2 w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition-colors"
+                        >
+                            Go to Login
+                            <ArrowRightIcon className="w-5 h-5" />
+                        </Link>
+                    </motion.div>
+                </Card>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-2xl mx-auto">
                 <Link
                     to={ROUTES.HOME}
-                    className="inline-flex items-center gap-2 text-gray-600 hover:text-indigo-600 mb-6 transition-colors group"
+                    className="inline-flex items-center gap-2 text-gray-600 hover:text-primary-600 mb-6 transition-colors group"
                 >
                     <ArrowLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                     Back to Home
                 </Link>
 
-                <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-gray-100"
-                >
+                <Card className="overflow-hidden p-0">
                     {/* Header */}
-                    <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-8 py-6">
+                    <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-8 py-6">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h1 className="text-3xl font-bold text-white">Create Account</h1>
-                                <p className="text-indigo-100 mt-2">Join thousands of users tracking their health journey</p>
+                                <p className="text-primary-100 mt-2">Join thousands of users tracking their health journey</p>
                             </div>
-                            <div className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                                <SparklesIcon className="w-5 h-5 text-yellow-300" />
-                                <span className="text-sm text-white">Free forever</span>
-                            </div>
+                            <Badge variant="primary" className="bg-white/20 text-white border-white/30">
+                                Free forever
+                            </Badge>
                         </div>
                     </div>
 
@@ -342,16 +408,24 @@ const Register = () => {
                         <div className="flex items-center justify-between max-w-md mx-auto">
                             {[1, 2, 3].map((num) => (
                                 <div key={num} className="flex items-center">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all
-                                        ${step > num ? 'bg-green-500 text-white' :
-                                            step === num ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' :
-                                                'bg-gray-200 text-gray-600'}`}
+                                    <motion.div
+                                        initial={{ scale: 1 }}
+                                        animate={{ scale: step === num ? 1.1 : 1 }}
+                                        className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all
+                                            ${step > num
+                                                ? 'bg-success-500 text-white'
+                                                : step === num
+                                                    ? 'bg-primary-600 text-white ring-4 ring-primary-100'
+                                                    : 'bg-gray-200 text-gray-600'}`}
                                     >
                                         {step > num ? <CheckCircleIcon className="w-5 h-5" /> : num}
-                                    </div>
+                                    </motion.div>
                                     {num < 3 && (
-                                        <div className={`w-16 h-1 mx-2 rounded transition-colors
-                                            ${step > num ? 'bg-green-500' : 'bg-gray-200'}`}
+                                        <motion.div
+                                            initial={{ width: '4rem' }}
+                                            animate={{ width: step > num ? '4rem' : '4rem' }}
+                                            className={`h-1 mx-2 rounded transition-colors
+                                                ${step > num ? 'bg-success-500' : 'bg-gray-200'}`}
                                         />
                                     )}
                                 </div>
@@ -363,6 +437,49 @@ const Register = () => {
                             <span>Review</span>
                         </div>
                     </div>
+
+                    {/* Server Error Summary */}
+                    {Object.keys(serverErrors).length > 0 && (
+                        <div className="mx-8 mt-6 p-4 bg-error-50 border border-error-200 rounded-xl">
+                            <div className="flex items-start gap-3">
+                                <ExclamationTriangleIcon className="w-5 h-5 text-error-600 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <h4 className="text-sm font-semibold text-error-800 mb-2">
+                                        Please fix the following errors:
+                                    </h4>
+                                    <ul className="text-xs text-error-700 space-y-1 list-disc list-inside">
+                                        {Object.entries(serverErrors).map(([field, messages]) => (
+                                            <li key={field}>
+                                                <span className="font-medium capitalize">{field.replace('_', ' ')}:</span>{' '}
+                                                {Array.isArray(messages) ? messages.join(', ') : messages}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Validation Error Summary */}
+                    {Object.keys(validationErrors).length > 0 && (
+                        <div className="mx-8 mt-6 p-4 bg-warning-50 border border-warning-200 rounded-xl">
+                            <div className="flex items-start gap-3">
+                                <ExclamationTriangleIcon className="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <h4 className="text-sm font-semibold text-warning-800 mb-2">
+                                        Validation issues:
+                                    </h4>
+                                    <ul className="text-xs text-warning-700 space-y-1 list-disc list-inside">
+                                        {Object.entries(validationErrors).map(([field, message]) => (
+                                            <li key={field}>
+                                                <span className="font-medium capitalize">{field}:</span> {message}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-6">
                         {/* Step 1: Account Information */}
@@ -391,21 +508,16 @@ const Register = () => {
                                                 }}
                                                 className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none transition
                                                     ${errors.username || serverErrors.username
-                                                        ? 'border-red-300 focus:border-red-500 bg-red-50'
-                                                        : 'border-gray-200 focus:border-indigo-500'}`}
+                                                        ? 'border-error-300 focus:border-error-500 bg-error-50'
+                                                        : 'border-gray-200 focus:border-primary-500'}`}
                                                 placeholder="johndoe"
                                             />
                                         </div>
-                                        {errors.username && (
-                                            <p className="text-sm text-red-600 flex items-center gap-1 mt-1">
+                                        {(errors.username || serverErrors.username) && (
+                                            <p className="text-sm text-error-600 flex items-center gap-1 mt-1">
                                                 <XCircleIcon className="w-4 h-4" />
-                                                {errors.username.message}
-                                            </p>
-                                        )}
-                                        {serverErrors.username && (
-                                            <p className="text-sm text-red-600 flex items-center gap-1 mt-1">
-                                                <XCircleIcon className="w-4 h-4" />
-                                                {serverErrors.username[0]}
+                                                {errors.username?.message || (serverErrors.username &&
+                                                    (Array.isArray(serverErrors.username) ? serverErrors.username[0] : serverErrors.username))}
                                             </p>
                                         )}
                                     </div>
@@ -426,21 +538,16 @@ const Register = () => {
                                                 }}
                                                 className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none transition
                                                     ${errors.email || serverErrors.email
-                                                        ? 'border-red-300 focus:border-red-500 bg-red-50'
-                                                        : 'border-gray-200 focus:border-indigo-500'}`}
+                                                        ? 'border-error-300 focus:border-error-500 bg-error-50'
+                                                        : 'border-gray-200 focus:border-primary-500'}`}
                                                 placeholder="john@example.com"
                                             />
                                         </div>
-                                        {errors.email && (
-                                            <p className="text-sm text-red-600 flex items-center gap-1 mt-1">
+                                        {(errors.email || serverErrors.email) && (
+                                            <p className="text-sm text-error-600 flex items-center gap-1 mt-1">
                                                 <XCircleIcon className="w-4 h-4" />
-                                                {errors.email.message}
-                                            </p>
-                                        )}
-                                        {serverErrors.email && (
-                                            <p className="text-sm text-red-600 flex items-center gap-1 mt-1">
-                                                <XCircleIcon className="w-4 h-4" />
-                                                {serverErrors.email[0]}
+                                                {errors.email?.message || (serverErrors.email &&
+                                                    (Array.isArray(serverErrors.email) ? serverErrors.email[0] : serverErrors.email))}
                                             </p>
                                         )}
                                     </div>
@@ -462,9 +569,9 @@ const Register = () => {
                                                     handleFieldChange('password');
                                                 }}
                                                 className={`w-full pl-10 pr-12 py-3 border-2 rounded-xl focus:outline-none transition
-                                                    ${errors.password || serverErrors.password
-                                                        ? 'border-red-300 focus:border-red-500 bg-red-50'
-                                                        : 'border-gray-200 focus:border-indigo-500'}`}
+                                                    ${errors.password
+                                                        ? 'border-error-300 focus:border-error-500 bg-error-50'
+                                                        : 'border-gray-200 focus:border-primary-500'}`}
                                                 placeholder="••••••••"
                                             />
                                             <button
@@ -476,7 +583,7 @@ const Register = () => {
                                             </button>
                                         </div>
                                         {errors.password && (
-                                            <p className="text-sm text-red-600 flex items-center gap-1 mt-1">
+                                            <p className="text-sm text-error-600 flex items-center gap-1 mt-1">
                                                 <XCircleIcon className="w-4 h-4" />
                                                 {errors.password.message}
                                             </p>
@@ -499,8 +606,8 @@ const Register = () => {
                                                 }}
                                                 className={`w-full pl-10 pr-12 py-3 border-2 rounded-xl focus:outline-none transition
                                                     ${errors.confirmPassword
-                                                        ? 'border-red-300 focus:border-red-500 bg-red-50'
-                                                        : 'border-gray-200 focus:border-indigo-500'}`}
+                                                        ? 'border-error-300 focus:border-error-500 bg-error-50'
+                                                        : 'border-gray-200 focus:border-primary-500'}`}
                                                 placeholder="••••••••"
                                             />
                                             <button
@@ -512,7 +619,7 @@ const Register = () => {
                                             </button>
                                         </div>
                                         {errors.confirmPassword && (
-                                            <p className="text-sm text-red-600 flex items-center gap-1 mt-1">
+                                            <p className="text-sm text-error-600 flex items-center gap-1 mt-1">
                                                 <XCircleIcon className="w-4 h-4" />
                                                 {errors.confirmPassword.message}
                                             </p>
@@ -544,7 +651,7 @@ const Register = () => {
                                                 register('firstName').onChange(e);
                                                 handleFieldChange('firstName');
                                             }}
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition"
+                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition"
                                             placeholder="John"
                                         />
                                     </div>
@@ -558,7 +665,7 @@ const Register = () => {
                                                 register('lastName').onChange(e);
                                                 handleFieldChange('lastName');
                                             }}
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition"
+                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition"
                                             placeholder="Doe"
                                         />
                                     </div>
@@ -575,12 +682,12 @@ const Register = () => {
                                                     handleFieldChange('phoneNumber');
                                                 }}
                                                 className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none transition
-                                                    ${errors.phoneNumber ? 'border-red-300 bg-red-50' : 'border-gray-200 focus:border-indigo-500'}`}
+                                                    ${errors.phoneNumber ? 'border-error-300 bg-error-50' : 'border-gray-200 focus:border-primary-500'}`}
                                                 placeholder="+1234567890"
                                             />
                                         </div>
                                         {errors.phoneNumber && (
-                                            <p className="text-sm text-red-600 mt-1">{errors.phoneNumber.message}</p>
+                                            <p className="text-sm text-error-600 mt-1">{errors.phoneNumber.message}</p>
                                         )}
                                     </div>
 
@@ -595,17 +702,18 @@ const Register = () => {
                                                 onChange={(e) => {
                                                     register('dateOfBirth').onChange(e);
                                                     handleFieldChange('dateOfBirth');
+                                                    setValue('dateOfBirth', e.target.value ? new Date(e.target.value) : null);
                                                 }}
-                                                max={new Date().toISOString().split('T')[0]}
+                                                max={formatDateForInput(new Date())}
                                                 className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none transition
-                                                    ${errors.dateOfBirth || serverErrors.date_of_birth ? 'border-red-300 bg-red-50' : 'border-gray-200 focus:border-indigo-500'}`}
+                                                    ${errors.dateOfBirth || serverErrors.date_of_birth ? 'border-error-300 bg-error-50' : 'border-gray-200 focus:border-primary-500'}`}
                                             />
                                         </div>
-                                        {errors.dateOfBirth && (
-                                            <p className="text-sm text-red-600 mt-1">{errors.dateOfBirth.message}</p>
-                                        )}
-                                        {serverErrors.date_of_birth && (
-                                            <p className="text-sm text-red-600 mt-1">{serverErrors.date_of_birth[0]}</p>
+                                        {(errors.dateOfBirth || serverErrors.date_of_birth) && (
+                                            <p className="text-sm text-error-600 mt-1">
+                                                {errors.dateOfBirth?.message || (serverErrors.date_of_birth &&
+                                                    (Array.isArray(serverErrors.date_of_birth) ? serverErrors.date_of_birth[0] : serverErrors.date_of_birth))}
+                                            </p>
                                         )}
                                     </div>
 
@@ -613,7 +721,7 @@ const Register = () => {
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Height (cm)</label>
                                         <div className="relative">
-                                            <PresentationChartBarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                            <ArrowsUpDownIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                             <input
                                                 {...register('height')}
                                                 type="number"
@@ -623,12 +731,12 @@ const Register = () => {
                                                     handleFieldChange('height');
                                                 }}
                                                 className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none transition
-                                                    ${errors.height ? 'border-red-300 bg-red-50' : 'border-gray-200 focus:border-indigo-500'}`}
+                                                    ${errors.height ? 'border-error-300 bg-error-50' : 'border-gray-200 focus:border-primary-500'}`}
                                                 placeholder="170"
                                             />
                                         </div>
                                         {errors.height && (
-                                            <p className="text-sm text-red-600 mt-1">{errors.height.message}</p>
+                                            <p className="text-sm text-error-600 mt-1">{errors.height.message}</p>
                                         )}
                                     </div>
 
@@ -646,12 +754,12 @@ const Register = () => {
                                                     handleFieldChange('weight');
                                                 }}
                                                 className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none transition
-                                                    ${errors.weight ? 'border-red-300 bg-red-50' : 'border-gray-200 focus:border-indigo-500'}`}
+                                                    ${errors.weight ? 'border-error-300 bg-error-50' : 'border-gray-200 focus:border-primary-500'}`}
                                                 placeholder="70"
                                             />
                                         </div>
                                         {errors.weight && (
-                                            <p className="text-sm text-red-600 mt-1">{errors.weight.message}</p>
+                                            <p className="text-sm text-error-600 mt-1">{errors.weight.message}</p>
                                         )}
                                     </div>
                                 </div>
@@ -661,22 +769,24 @@ const Register = () => {
                                     <motion.div
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className={`mt-4 p-4 ${getBmiCategory(bmi)?.bg} rounded-xl border ${getBmiCategory(bmi)?.color.replace('text', 'border')}`}
+                                        className="mt-4"
                                     >
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="text-sm text-gray-600">Your BMI</p>
-                                                <p className={`text-2xl font-bold ${getBmiCategory(bmi)?.color}`}>
-                                                    {bmi} <span className="text-sm font-normal text-gray-500">kg/m²</span>
-                                                </p>
+                                        <Card variant="primary" padding="md">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm text-gray-600">Your BMI</p>
+                                                    <p className="text-2xl font-bold text-gray-900">
+                                                        {bmi} <span className="text-sm font-normal text-gray-500">kg/m²</span>
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm text-gray-600">Category</p>
+                                                    <Badge variant={getBmiCategory(bmi)?.variant} size="md">
+                                                        {getBmiCategory(bmi)?.label}
+                                                    </Badge>
+                                                </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-sm text-gray-600">Category</p>
-                                                <p className={`font-semibold ${getBmiCategory(bmi)?.color}`}>
-                                                    {getBmiCategory(bmi)?.label}
-                                                </p>
-                                            </div>
-                                        </div>
+                                        </Card>
                                     </motion.div>
                                 )}
                             </motion.div>
@@ -737,16 +847,21 @@ const Register = () => {
                                                     <div>
                                                         <span className="text-gray-500 block">Date of Birth:</span>
                                                         <span className="font-medium text-gray-900">
-                                                            {new Date(watchFields.dateOfBirth).toLocaleDateString()}
+                                                            {formatDateForDisplay(watchFields.dateOfBirth)}
+                                                            {calculateAge(watchFields.dateOfBirth) && (
+                                                                <span className="text-gray-500 ml-1">
+                                                                    ({calculateAge(watchFields.dateOfBirth)} years)
+                                                                </span>
+                                                            )}
                                                         </span>
                                                     </div>
                                                 )}
                                                 {bmi && (
                                                     <div>
                                                         <span className="text-gray-500 block">BMI:</span>
-                                                        <span className={`font-medium ${getBmiCategory(bmi)?.color}`}>
-                                                            {bmi} ({getBmiCategory(bmi)?.label})
-                                                        </span>
+                                                        <Badge variant={getBmiCategory(bmi)?.variant} size="sm">
+                                                            {bmi} - {getBmiCategory(bmi)?.label}
+                                                        </Badge>
                                                     </div>
                                                 )}
                                             </div>
@@ -756,7 +871,7 @@ const Register = () => {
 
                                 {/* Terms agreement */}
                                 <div className="space-y-3">
-                                    <label className="flex items-start gap-3 p-4 bg-indigo-50 rounded-xl cursor-pointer group border border-indigo-100">
+                                    <label className="flex items-start gap-3 p-4 bg-primary-50 rounded-xl cursor-pointer group border border-primary-100">
                                         <input
                                             {...register('acceptTerms')}
                                             type="checkbox"
@@ -764,22 +879,22 @@ const Register = () => {
                                                 register('acceptTerms').onChange(e);
                                                 handleFieldChange('acceptTerms');
                                             }}
-                                            className="mt-1 w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                            className="mt-1 w-5 h-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
                                         />
                                         <span className="text-sm text-gray-700">
                                             I agree to the{' '}
-                                            <Link to="/terms" className="text-indigo-600 hover:text-indigo-700 font-medium">
+                                            <Link to="/terms" className="text-primary-600 hover:text-primary-700 font-medium">
                                                 Terms of Service
                                             </Link>{' '}
                                             and{' '}
-                                            <Link to="/privacy" className="text-indigo-600 hover:text-indigo-700 font-medium">
+                                            <Link to="/privacy" className="text-primary-600 hover:text-primary-700 font-medium">
                                                 Privacy Policy
                                             </Link>
                                             . <span className="text-red-500">*</span>
                                         </span>
                                     </label>
                                     {errors.acceptTerms && (
-                                        <p className="text-sm text-red-600 flex items-center gap-1">
+                                        <p className="text-sm text-error-600 flex items-center gap-1">
                                             <XCircleIcon className="w-4 h-4" />
                                             {errors.acceptTerms.message}
                                         </p>
@@ -814,7 +929,7 @@ const Register = () => {
                                 <button
                                     type="button"
                                     onClick={nextStep}
-                                    className="ml-auto px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300 flex items-center gap-2"
+                                    className="ml-auto px-8 py-3 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300 flex items-center gap-2"
                                 >
                                     Continue
                                     <ArrowRightIcon className="w-5 h-5" />
@@ -823,7 +938,7 @@ const Register = () => {
                                 <button
                                     type="submit"
                                     disabled={isSubmitting || !isValid}
-                                    className="ml-auto px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    className="ml-auto px-8 py-3 bg-gradient-to-r from-success-600 to-success-500 text-white rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -844,29 +959,13 @@ const Register = () => {
                         {step === 1 && (
                             <p className="text-center text-gray-600">
                                 Already have an account?{' '}
-                                <Link to={ROUTES.LOGIN} className="text-indigo-600 hover:text-indigo-700 font-medium">
+                                <Link to={ROUTES.LOGIN} className="text-primary-600 hover:text-primary-700 font-medium">
                                     Sign in
                                 </Link>
                             </p>
                         )}
                     </form>
-                </motion.div>
-
-                {/* Trust Badges */}
-                <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-xs text-gray-500">
-                    <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full">
-                        <ShieldCheckIcon className="w-4 h-4 text-green-600" />
-                        <span>HIPAA Compliant</span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full">
-                        <LockClosedIcon className="w-4 h-4 text-blue-600" />
-                        <span>256-bit Encryption</span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full">
-                        <CheckCircleIcon className="w-4 h-4 text-purple-600" />
-                        <span>GDPR Ready</span>
-                    </div>
-                </div>
+                </Card>
             </div>
         </div>
     );

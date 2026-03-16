@@ -11,80 +11,80 @@ export const predictionsAPI = {
         if (params.page) queryParams.append('page', params.page);
         if (params.pageSize) queryParams.append('page_size', params.pageSize);
 
-        const url = `/predictions/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+        const url = `/predictions/predictions/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
         const response = await api.get(url);
         return response.data;
     },
 
     // Get single prediction by ID
     getById: async (id) => {
-        const response = await api.get(`/predictions/${id}/`);
+        const response = await api.get(`/predictions/predictions/${id}/`);
         return response.data;
     },
 
     // Get detailed prediction with explanations
     getDetail: async (id) => {
-        const response = await api.get(`/predictions/${id}/detail/`);
+        const response = await api.get(`/predictions/predictions/${id}/explain/`);
         return response.data;
     },
 
     // Create new prediction
     create: async (predictionData) => {
-        const response = await api.post('/predictions/', predictionData);
+        const response = await api.post('/predictions/predictions/', predictionData);
         return response.data;
     },
 
     // Update prediction
     update: async (id, predictionData) => {
-        const response = await api.put(`/predictions/${id}/`, predictionData);
+        const response = await api.put(`/predictions/predictions/${id}/`, predictionData);
         return response.data;
     },
 
     // Partial update prediction
     partialUpdate: async (id, predictionData) => {
-        const response = await api.patch(`/predictions/${id}/`, predictionData);
+        const response = await api.patch(`/predictions/predictions/${id}/`, predictionData);
         return response.data;
     },
 
     // Delete prediction
     delete: async (id) => {
-        const response = await api.delete(`/predictions/${id}/`);
+        const response = await api.delete(`/predictions/predictions/${id}/`);
         return response.data;
     },
 
     // Get prediction statistics
     getStats: async () => {
-        const response = await api.get('/predictions/stats/');
+        const response = await api.get('/predictions/predictions/stats/');
         return response.data;
     },
 
     // Get prediction trends
     getTrends: async () => {
-        const response = await api.get('/predictions/trends/');
+        const response = await api.get('/predictions/predictions/trends/');
         return response.data;
     },
 
     // Get dashboard data
     getDashboard: async () => {
-        const response = await api.get('/predictions/dashboard/');
+        const response = await api.get('/predictions/predictions/dashboard/');
         return response.data;
     },
 
     // Get explanation for prediction
     getExplanation: async (id) => {
-        const response = await api.get(`/predictions/${id}/explain/`);
+        const response = await api.get(`/predictions/predictions/${id}/explain/`);
         return response.data;
     },
 
     // Submit feedback for prediction
     submitFeedback: async (id, feedback, notes = '') => {
-        const response = await api.post(`/predictions/${id}/feedback/`, { feedback, notes });
+        const response = await api.post(`/predictions/predictions/${id}/feedback/`, { feedback, notes });
         return response.data;
     },
 
     // Run what-if simulation
     runSimulation: async (simulationData) => {
-        const response = await api.post('/predictions/simulate/', simulationData);
+        const response = await api.post('/predictions/predictions/simulate/', simulationData);
         return response.data;
     },
 
@@ -102,7 +102,7 @@ export const predictionsAPI = {
 
     // Get prediction report PDF
     getReport: async (id) => {
-        const response = await api.get(`/predictions/${id}/report/`, {
+        const response = await api.get(`/predictions/predictions/${id}/report/`, {
             responseType: 'blob',
         });
         return response.data;
@@ -110,13 +110,13 @@ export const predictionsAPI = {
 
     // Get mobile dashboard
     getMobileDashboard: async () => {
-        const response = await api.get('/predictions/mobile/dashboard/');
+        const response = await api.get('/predictions/predictions/dashboard/');
         return response.data;
     },
 
     // Get personalized plan
     getPersonalizedPlan: async (id) => {
-        const response = await api.get(`/predictions/${id}/personalized-plan/`);
+        const response = await api.get(`/predictions/predictions/${id}/personalized-plan/`);
         return response.data;
     },
 };

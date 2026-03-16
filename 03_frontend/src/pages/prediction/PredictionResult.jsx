@@ -13,13 +13,36 @@ import {
     BeakerIcon,
     ShieldCheckIcon,
     SparklesIcon,
-    ArrowPathIcon
+    ArrowPathIcon,
+    CheckCircleIcon,
+    ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { usePredictions } from '../../hooks/usePredictions';
-import Loader from '../../components/Loader';
-import Badge from '../../components/Badge';
-import toast from 'react-hot-toast';
+import { useNotification } from '../../context/NotificationContext';
 import { ROUTES } from '../../constants/routes';
+
+// Badge Component
+const Badge = ({ children, variant = 'default', size = 'md' }) => {
+    const variants = {
+        low: 'bg-green-100 text-green-800 border-green-200',
+        moderate: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+        high: 'bg-red-100 text-red-800 border-red-200',
+        default: 'bg-gray-100 text-gray-800 border-gray-200',
+        success: 'bg-blue-100 text-blue-800 border-blue-200',
+    };
+
+    const sizes = {
+        sm: 'px-2 py-0.5 text-xs',
+        md: 'px-3 py-1 text-sm',
+        lg: 'px-4 py-2 text-base',
+    };
+
+    return (
+        <span className={`inline-flex items-center rounded-full border ${variants[variant]} ${sizes[size]} font-medium`}>
+            {children}
+        </span>
+    );
+};
 
 // Helper function to get risk color
 const getRiskColor = (level) => {
@@ -58,11 +81,34 @@ const formatDate = (dateString) => {
     }
 };
 
+// Helper function to format value
+const formatValue = (key, value) => {
+    if (value === undefined || value === null) return '—';
+    
+    // Handle boolean values
+    if (typeof value === 'boolean') {
+        return value ? 'Yes' : 'No';
+    }
+    
+    // Handle 0/1 values
+    if (value === 0 || value === 1) {
+        return value === 1 ? 'Yes' : 'No';
+    }
+    
+    // Handle numbers with 2 decimal places
+    if (typeof value === 'number') {
+        return value.toFixed(2);
+    }
+    
+    return String(value);
+};
+
 const PredictionResult = () => {
     const { id } = useParams();
     const location = useLocation();
     const navigate = useNavigate();
     const { getPredictionDetail, loading: apiLoading } = usePredictions();
+    const { showNotification } = useNotification();
 
     const [prediction, setPrediction] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -98,11 +144,12 @@ const PredictionResult = () => {
                 setPrediction(data);
             } else {
                 setError('Prediction not found');
+                showNotification('error', 'Prediction not found');
             }
         } catch (err) {
             console.error('Error fetching prediction:', err);
             setError('Failed to load prediction');
-            toast.error('Failed to load prediction details');
+            showNotification('error', 'Failed to load prediction details');
         } finally {
             setLoading(false);
         }
@@ -110,8 +157,14 @@ const PredictionResult = () => {
 
     const handleExport = async () => {
         try {
-            // In a real app, you'd generate a PDF here
-            const dataStr = JSON.stringify(prediction, null, 2);
+            // Create JSON export
+            const exportData = {
+                prediction: prediction,
+                exported_at: new Date().toISOString(),
+                version: '1.0'
+            };
+            
+            const dataStr = JSON.stringify(exportData, null, 2);
             const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
             const exportFileDefaultName = `prediction_${id || 'result'}_${new Date().toISOString().split('T')[0]}.json`;
 
@@ -120,16 +173,16 @@ const PredictionResult = () => {
             linkElement.setAttribute('download', exportFileDefaultName);
             linkElement.click();
 
-            toast.success('Report exported successfully');
+            showNotification('success', 'Report exported successfully');
         } catch (error) {
             console.error('Export error:', error);
-            toast.error('Failed to download report');
+            showNotification('error', 'Failed to download report');
         }
     };
 
     const handleShare = () => {
         navigator.clipboard.writeText(window.location.href);
-        toast.success('Link copied to clipboard');
+        showNotification('success', 'Link copied to clipboard');
     };
 
     const handleNewAssessment = () => {
@@ -146,16 +199,29 @@ const PredictionResult = () => {
         });
     };
 
+    const handleSaveToAccount = () => {
+        navigate(ROUTES.LOGIN, {
+            state: {
+                from: ROUTES.PREDICTIONS.RESULT,
+                savedData: formData,
+                message: 'Sign in to save this result to your account!'
+            }
+        });
+    };
+
     // Extract prediction data (handles both formats)
     const predictionData = prediction?.prediction || prediction || {};
     const riskLevel = predictionData.risk_level || predictionData.result || 'unknown';
     const riskScore = predictionData.risk_score || (predictionData.probability ? predictionData.probability * 100 : 0);
     const probability = predictionData.probability || (riskScore / 100) || 0;
     const createdAt = predictionData.created_at || predictionData.date || new Date().toISOString();
-    const modelVersion = predictionData.model_version || predictionData.threshold_used ? 'v1.0' : '1.0';
+    const modelVersion = predictionData.model_version || '1.0';
 
     // Get top factors
     const topFactors = predictionData.top_factors || [];
+
+    // Get recommendations
+    const recommendations = predictionData.recommendations || [];
 
     if (loading || apiLoading) {
         return (
@@ -173,7 +239,7 @@ const PredictionResult = () => {
             <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
                 <div className="text-center max-w-md">
                     <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <ShieldCheckIcon className="w-10 h-10 text-red-600" />
+                        <ExclamationTriangleIcon className="w-10 h-10 text-red-600" />
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Result Not Found</h2>
                     <p className="text-gray-600 mb-6">
@@ -191,11 +257,12 @@ const PredictionResult = () => {
         );
     }
 
-    // If public result, show simplified view
+    // If public result, show simplified view with signup prompt
     if (isPublic) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-4xl mx-auto">
+                    {/* Back Button */}
                     <motion.div
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -210,6 +277,7 @@ const PredictionResult = () => {
                         </button>
                     </motion.div>
 
+                    {/* Main Result Card */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -230,6 +298,7 @@ const PredictionResult = () => {
                             <div className="flex flex-col items-center mb-8">
                                 <div className="relative w-48 h-48 mb-4">
                                     <svg className="w-full h-full" viewBox="0 0 100 100">
+                                        {/* Background circle */}
                                         <circle
                                             cx="50"
                                             cy="50"
@@ -238,6 +307,7 @@ const PredictionResult = () => {
                                             stroke="#e5e7eb"
                                             strokeWidth="10"
                                         />
+                                        {/* Progress circle */}
                                         <circle
                                             cx="50"
                                             cy="50"
@@ -250,15 +320,26 @@ const PredictionResult = () => {
                                             strokeDashoffset={`${2 * Math.PI * 45 * (1 - (riskScore / 100))}`}
                                             transform="rotate(-90 50 50)"
                                         />
+                                        {/* Score text */}
                                         <text
                                             x="50"
-                                            y="50"
+                                            y="45"
                                             textAnchor="middle"
                                             dominantBaseline="middle"
-                                            className="text-2xl font-bold"
+                                            className="text-3xl font-bold"
                                             fill="#111827"
                                         >
                                             {riskScore.toFixed(1)}%
+                                        </text>
+                                        <text
+                                            x="50"
+                                            y="60"
+                                            textAnchor="middle"
+                                            dominantBaseline="middle"
+                                            className="text-xs"
+                                            fill="#6B7280"
+                                        >
+                                            risk score
                                         </text>
                                     </svg>
                                 </div>
@@ -270,7 +351,7 @@ const PredictionResult = () => {
                                 </p>
                             </div>
 
-                            {/* Top Factors */}
+                            {/* Top Factors (Preview) */}
                             {topFactors.length > 0 && (
                                 <div className="mb-8">
                                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -288,33 +369,43 @@ const PredictionResult = () => {
                                                         {index + 1}
                                                     </span>
                                                     <span className="font-medium text-gray-900">
-                                                        {factor.feature || factor.name}
+                                                        {factor.feature || factor.name || `Factor ${index + 1}`}
                                                     </span>
                                                 </div>
                                                 <span className="text-sm text-gray-600">
-                                                    {factor.value}
+                                                    {factor.value !== undefined ? formatValue(null, factor.value) : `${(factor.importance * 100).toFixed(0)}%`}
                                                 </span>
                                             </div>
                                         ))}
                                     </div>
+                                    {topFactors.length > 3 && (
+                                        <p className="text-sm text-gray-500 mt-2 text-center">
+                                            +{topFactors.length - 3} more factors (sign up to see all)
+                                        </p>
+                                    )}
                                 </div>
                             )}
 
                             {/* Recommendations Preview */}
-                            {predictionData.recommendations?.length > 0 && (
+                            {recommendations.length > 0 && (
                                 <div className="mb-8">
                                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                         <HeartIcon className="w-5 h-5 text-blue-600" />
                                         Recommendations
                                     </h3>
                                     <ul className="space-y-2">
-                                        {predictionData.recommendations.slice(0, 2).map((rec, index) => (
+                                        {recommendations.slice(0, 2).map((rec, index) => (
                                             <li key={index} className="flex items-start gap-2 text-gray-700">
-                                                <span className="text-blue-600 font-bold">•</span>
+                                                <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                                                 <span>{rec.title || rec}</span>
                                             </li>
                                         ))}
                                     </ul>
+                                    {recommendations.length > 2 && (
+                                        <p className="text-sm text-gray-500 mt-2 text-center">
+                                            +{recommendations.length - 2} more recommendations (sign up to see all)
+                                        </p>
+                                    )}
                                 </div>
                             )}
 
@@ -337,8 +428,14 @@ const PredictionResult = () => {
                                                 Sign Up Free
                                             </button>
                                             <button
-                                                onClick={handleNewAssessment}
+                                                onClick={handleSaveToAccount}
                                                 className="px-4 py-2 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium border border-gray-300"
+                                            >
+                                                I have an account
+                                            </button>
+                                            <button
+                                                onClick={handleNewAssessment}
+                                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium"
                                             >
                                                 New Assessment
                                             </button>
@@ -364,7 +461,7 @@ const PredictionResult = () => {
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
             <div className="max-w-6xl mx-auto">
-                {/* Header */}
+                {/* Header with actions */}
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -382,16 +479,18 @@ const PredictionResult = () => {
                         <button
                             onClick={handleExport}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+                            title="Export as JSON"
                         >
                             <DocumentArrowDownIcon className="w-4 h-4" />
-                            <span>Export</span>
+                            <span className="hidden sm:inline">Export</span>
                         </button>
                         <button
                             onClick={handleShare}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+                            title="Copy link to clipboard"
                         >
                             <ShareIcon className="w-4 h-4" />
-                            <span>Share</span>
+                            <span className="hidden sm:inline">Share</span>
                         </button>
                     </div>
                 </motion.div>
@@ -405,7 +504,7 @@ const PredictionResult = () => {
                 >
                     {/* Header */}
                     <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-6">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between flex-wrap gap-4">
                             <div>
                                 <h1 className="text-3xl font-bold text-white mb-2">Your Risk Assessment Result</h1>
                                 <p className="text-blue-100">Detailed analysis based on your health profile</p>
@@ -421,6 +520,7 @@ const PredictionResult = () => {
                         <div className="flex flex-col items-center mb-8">
                             <div className="relative w-64 h-64 mb-4">
                                 <svg className="w-full h-full" viewBox="0 0 100 100">
+                                    {/* Background circle */}
                                     <circle
                                         cx="50"
                                         cy="50"
@@ -429,6 +529,7 @@ const PredictionResult = () => {
                                         stroke="#e5e7eb"
                                         strokeWidth="10"
                                     />
+                                    {/* Progress circle */}
                                     <circle
                                         cx="50"
                                         cy="50"
@@ -441,6 +542,7 @@ const PredictionResult = () => {
                                         strokeDashoffset={`${2 * Math.PI * 45 * (1 - (riskScore / 100))}`}
                                         transform="rotate(-90 50 50)"
                                     />
+                                    {/* Score text */}
                                     <text
                                         x="50"
                                         y="45"
@@ -481,7 +583,7 @@ const PredictionResult = () => {
                             </span>
                             <span className="flex items-center">
                                 <ClockIcon className="w-4 h-4 mr-2" />
-                                Model {modelVersion}
+                                Model v{modelVersion}
                             </span>
                         </div>
 
@@ -511,6 +613,7 @@ const PredictionResult = () => {
 
                         {/* Tab Content */}
                         <div className="min-h-[300px]">
+                            {/* Top Factors Tab */}
                             {activeTab === 'factors' && (
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -523,20 +626,24 @@ const PredictionResult = () => {
                                                 initial={{ opacity: 0, x: -20 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: index * 0.1 }}
-                                                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                                                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
                                             >
                                                 <div className="flex items-center space-x-3">
                                                     <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
                                                         {index + 1}
                                                     </span>
                                                     <div>
-                                                        <p className="font-medium text-gray-900">{factor.feature || factor.name}</p>
-                                                        <p className="text-sm text-gray-500">Value: {factor.value}</p>
+                                                        <p className="font-medium text-gray-900">
+                                                            {factor.feature || factor.name || `Factor ${index + 1}`}
+                                                        </p>
+                                                        <p className="text-sm text-gray-500">
+                                                            Value: {factor.value !== undefined ? formatValue(null, factor.value) : '—'}
+                                                        </p>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-sm font-medium text-gray-900">
-                                                        {factor.importance ? factor.importance.toFixed(3) : '—'}
+                                                        {factor.importance ? (factor.importance * 100).toFixed(1) + '%' : '—'}
                                                     </p>
                                                     <p className={`text-xs ${(factor.impact === 'positive' || factor.importance > 0) ? 'text-red-600' : 'text-green-600'}`}>
                                                         {(factor.impact === 'positive' || factor.importance > 0) ? 'increases risk' : 'decreases risk'}
@@ -550,21 +657,22 @@ const PredictionResult = () => {
                                 </div>
                             )}
 
+                            {/* Recommendations Tab */}
                             {activeTab === 'recommendations' && (
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                         <HeartIcon className="w-5 h-5 text-blue-600" />
                                         Personalized Recommendations
                                     </h3>
-                                    {predictionData.recommendations?.length > 0 ? (
+                                    {recommendations.length > 0 ? (
                                         <div className="space-y-3">
-                                            {predictionData.recommendations.map((rec, index) => (
+                                            {recommendations.map((rec, index) => (
                                                 <motion.div
                                                     key={index}
                                                     initial={{ opacity: 0, y: 10 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     transition={{ delay: index * 0.1 }}
-                                                    className="p-4 bg-blue-50 rounded-lg"
+                                                    className="p-4 bg-blue-50 rounded-lg border border-blue-100"
                                                 >
                                                     {typeof rec === 'string' ? (
                                                         <p className="text-gray-700">{rec}</p>
@@ -572,6 +680,11 @@ const PredictionResult = () => {
                                                         <>
                                                             <h4 className="font-medium text-gray-900 mb-1">{rec.title}</h4>
                                                             <p className="text-sm text-gray-600">{rec.description}</p>
+                                                            {rec.priority && (
+                                                                <Badge variant="success" size="sm" className="mt-2">
+                                                                    {rec.priority} priority
+                                                                </Badge>
+                                                            )}
                                                         </>
                                                     )}
                                                 </motion.div>
@@ -583,6 +696,7 @@ const PredictionResult = () => {
                                 </div>
                             )}
 
+                            {/* Input Details Tab */}
                             {activeTab === 'details' && (
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -593,15 +707,20 @@ const PredictionResult = () => {
                                         {predictionData.patient_data && Object.entries(predictionData.patient_data).map(([key, value]) => (
                                             <div key={key} className="p-3 bg-gray-50 rounded-lg">
                                                 <p className="text-xs text-gray-500 mb-1">{key}</p>
-                                                <p className="font-medium text-gray-900">{String(value)}</p>
+                                                <p className="font-medium text-gray-900">{formatValue(key, value)}</p>
                                             </div>
                                         ))}
                                         {!predictionData.patient_data && formData && Object.entries(formData).map(([key, value]) => (
                                             <div key={key} className="p-3 bg-gray-50 rounded-lg">
                                                 <p className="text-xs text-gray-500 mb-1">{key}</p>
-                                                <p className="font-medium text-gray-900">{String(value)}</p>
+                                                <p className="font-medium text-gray-900">{formatValue(key, value)}</p>
                                             </div>
                                         ))}
+                                        {!predictionData.patient_data && !formData && (
+                                            <p className="text-gray-500 col-span-full text-center py-8">
+                                                No input data available
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             )}

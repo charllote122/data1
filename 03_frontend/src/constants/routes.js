@@ -5,40 +5,38 @@ export const ROUTES = {
     REGISTER: '/register',
     FORGOT_PASSWORD: '/forgot-password',
     DASHBOARD: '/dashboard',
-    HISTORY: '/history',
-    PREDICTIONS: {
-        NEW: '/predictions/new',
-        DETAIL: '/predictions/:id',
-        RESULT: '/prediction/result',
-    },
     PROFILE: '/profile',
     SETTINGS: '/settings',
-    FAMILY: {
-        LIST: '/family',
-        ADD: '/family/add',
-        EDIT: '/family/edit/:id',
-    },
+    HISTORY: '/history',
+    ANALYTICS: '/analytics',
     GOALS: '/goals',
+    CHALLENGES: '/challenges',
+    RESOURCES: '/resources',
+
+    PREDICTIONS: {
+        NEW: '/prediction',              // Changed from '/predict/new'
+        RESULT: '/prediction/result',     // Changed from '/predict/result'
+        DETAIL: '/prediction/:id',        // Changed from '/predictions/:id'
+    },
+
     MEDICATIONS: {
         LIST: '/medications',
         CALENDAR: '/medications/calendar',
         NEW: '/medications/new',
         EDIT: '/medications/:id/edit',
     },
+
     SYMPTOMS: {
         LIST: '/symptoms',
         NEW: '/symptoms/new',
         TRENDS: '/symptoms/trends',
     },
-    RESOURCES: '/resources',
-    CHALLENGES: '/challenges',
-};
 
-// Additional routes used in Dashboard
-export const ADDITIONAL_ROUTES = {
-    ACTIVITY: '/activity',
-    REWARDS: '/rewards',
-    COMMUNITY: '/community',
-    ABOUT: '/about',
-    DEMO: '/demo',
+    HEALTH_COACH: {
+        HOME: '/health-coach',
+        CHAT: '/health-coach/chat',
+        DIET: '/health-coach/diet',
+        MEDICATIONS: '/health-coach/medications',
+        SYMPTOMS: '/health-coach/symptoms',
+    },
 };

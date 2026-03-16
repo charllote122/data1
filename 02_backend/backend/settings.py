@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'user_symptoms',
     'health_resources',
     'user_dashboard',
+    'ai',  # New AI app for health coach features
 ]
 
 MIDDLEWARE = [
@@ -231,6 +232,7 @@ REST_FRAMEWORK = {
         'user': '1000/day',
         'predictions': '60/hour',
         'burst': '10/minute',
+        'ai': '50/day',  # Rate limit for AI features
     },
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
@@ -353,6 +355,7 @@ class EmojiFilter(logging.Filter):
             record.msg = record.msg.replace('👤', '[USER]')
             record.msg = record.msg.replace('📧', '[EMAIL]')
             record.msg = record.msg.replace('🔒', '[SECURE]')
+            record.msg = record.msg.replace('🤖', '[AI]')
         return True
 
 # Custom JSON formatter
@@ -449,6 +452,13 @@ LOGGING = {
             'level': 'INFO',
             'encoding': 'utf-8',
         },
+        'ai_file': {
+            'class': 'logging.FileHandler',
+            'filename': LOGS_DIR / 'ai.log',
+            'formatter': 'verbose',
+            'level': 'INFO',
+            'encoding': 'utf-8',
+        },
     },
     'root': {
         'handlers': ['console', 'file'],
@@ -475,22 +485,94 @@ LOGGING = {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
+        'ai': {
+            'handlers': ['console', 'file', 'ai_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
     },
 }
 
 # ============================================================================
-# CACHE CONFIGURATION
+# CACHE CONFIGURATION - FIXED FOR NO REDIS
 # ============================================================================
 
+# Using local memory cache - no Redis required!
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'unique-snowflake',
+        'TIMEOUT': 300,  # 5 minutes default
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,  # Remove 1/3 of entries when max is reached
+        }
     }
 }
 
+# Alternative: File-based cache (persists between server restarts)
+# Uncomment if you want cache to survive server restarts
+# CACHES = {
+#     'default': {
+#         'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+#         'LOCATION': os.path.join(BASE_DIR, 'django_cache'),
+#         'TIMEOUT': 300,
+#         'OPTIONS': {
+#             'MAX_ENTRIES': 1000
+#         }
+#     }
+# }
+
 # Session cache
 SESSION_CACHE_ALIAS = 'default'
+
+# Cache timeouts for AI features
+AI_CACHE_TIMEOUT = 300  # 5 minutes
+MEAL_PLAN_CACHE_TIMEOUT = 3600  # 1 hour
+SYMPTOM_ANALYSIS_CACHE_TIMEOUT = 1800  # 30 minutes
+
+# ============================================================================
+# OPENROUTER AI SETTINGS
+# ============================================================================
+
+# OpenRouter API settings
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')
+OPENROUTER_BASE_URL = os.getenv('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
+OPENROUTER_DEFAULT_MODEL = os.getenv('OPENROUTER_DEFAULT_MODEL', 'google/gemma-3-12b-it:free')
+
+# Your site info for OpenRouter (helps them track usage)
+OPENROUTER_SITE_URL = os.getenv('OPENROUTER_SITE_URL', 'http://localhost:8000')
+OPENROUTER_SITE_NAME = os.getenv('OPENROUTER_SITE_NAME', 'Diabetes Health Coach')
+
+# Available models for different features
+AI_MODELS = {
+    'chat': os.getenv('AI_CHAT_MODEL', 'google/gemma-3-12b-it:free'),
+    'meal_plan': os.getenv('AI_MEAL_PLAN_MODEL', 'meta-llama/llama-3-8b-instruct:free'),
+    'symptom_analysis': os.getenv('AI_SYMPTOM_MODEL', 'microsoft/phi-3-mini-128k-instruct:free'),
+    'health_tips': os.getenv('AI_TIPS_MODEL', 'deepseek/deepseek-chat:free'),
+}
+
+# Model parameters
+AI_TEMPERATURE = {
+    'chat': 0.7,
+    'meal_plan': 0.8,
+    'symptom_analysis': 0.5,  # More conservative for medical advice
+    'health_tips': 0.6,
+}
+
+AI_MAX_TOKENS = {
+    'chat': 500,
+    'meal_plan': 1500,
+    'symptom_analysis': 600,
+    'health_tips': 300,
+}
+
+# Rate limiting for AI features
+AI_RATE_LIMITS = {
+    'chat': '50/day',
+    'meal_plan': '10/day',
+    'symptom_analysis': '20/day',
+}
 
 # ============================================================================
 # SECURITY SETTINGS FOR PRODUCTION
@@ -515,6 +597,7 @@ if not DEBUG:
     # Production logging level
     LOGGING['root']['level'] = 'WARNING'
     LOGGING['loggers']['django']['level'] = 'WARNING'
+    LOGGING['loggers']['ai']['level'] = 'INFO'  # Keep AI logging for monitoring
     
     # Production email settings (uncomment when ready)
     # EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

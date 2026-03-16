@@ -1,50 +1,59 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import authService from '../services/auth';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import api from '../services/api';
 
 const AuthContext = createContext(null);
-
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
-};
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [token, setToken] = useState(localStorage.getItem('access_token'));
 
     useEffect(() => {
-        // Load user from localStorage on mount
-        const loadUser = () => {
-            const currentUser = authService.getCurrentUser();
-            if (currentUser) {
-                setUser(currentUser);
+        // Check for stored user on mount
+        const initializeAuth = async () => {
+            const storedUser = localStorage.getItem('user');
+            const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+
+            if (storedUser && token) {
+                setUser(JSON.parse(storedUser));
             }
             setLoading(false);
         };
 
-        loadUser();
+        initializeAuth();
     }, []);
 
     const login = (userData, accessToken, refreshToken, remember = false) => {
         setUser(userData);
-        setToken(accessToken);
 
-        localStorage.setItem('access_token', accessToken);
-        if (refreshToken) {
+        // Store tokens based on remember preference
+        if (remember) {
+            localStorage.setItem('access_token', accessToken);
             localStorage.setItem('refresh_token', refreshToken);
+        } else {
+            sessionStorage.setItem('access_token', accessToken);
+            sessionStorage.setItem('refresh_token', refreshToken);
         }
+
         localStorage.setItem('user', JSON.stringify(userData));
     };
 
-    const logout = () => {
-        authService.logout();
+    const logout = async () => {
         setUser(null);
-        setToken(null);
+
+        // Clear all storage
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        sessionStorage.removeItem('access_token');
+        sessionStorage.removeItem('refresh_token');
+
+        // Optional: Call logout API
+        try {
+            await api.logout();
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
     };
 
     const updateUser = (userData) => {
@@ -55,11 +64,9 @@ export const AuthProvider = ({ children }) => {
     const value = {
         user,
         loading,
-        token,
         login,
         logout,
-        updateUser,
-        isAuthenticated: !!token && !!user
+        updateUser
     };
 
     return (
@@ -69,4 +76,10 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-export default AuthProvider;
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};

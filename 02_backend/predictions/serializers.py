@@ -4,7 +4,8 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from .models import (
     Prediction, UserHealthProfile, HealthTip,
-    Goal, Medication, Symptom, Challenge
+    Goal, Medication, Symptom, Challenge,
+    FamilyHistory  # Add this import
 )
 
 # ==================== USER SERIALIZER ====================
@@ -113,9 +114,9 @@ class PredictionSerializer(serializers.ModelSerializer):
             'formatted_date',
             'risk_category_color'
         ]
-        read_only_fields = ['id', 'created_at', 'shap_values', 'lime_explanation']  # Fixed: removed 'user' from read_only
+        read_only_fields = ['id', 'created_at', 'shap_values', 'lime_explanation']
         extra_kwargs = {
-            'user': {'write_only': True}  # Keep user as write-only
+            'user': {'write_only': True}
         }
 
     def get_risk_category_color(self, obj):
@@ -141,7 +142,7 @@ class PredictionDetailSerializer(PredictionSerializer):
     
     class Meta(PredictionSerializer.Meta):
         fields = PredictionSerializer.Meta.fields
-        read_only_fields = ['id', 'created_at']  # Fixed: removed 'user' from here too
+        read_only_fields = ['id', 'created_at']
 
 
 # ==================== PREDICTION HISTORY SERIALIZER ====================
@@ -436,6 +437,95 @@ class ChallengeSerializer(serializers.ModelSerializer):
         return False
 
 
+# ==================== FAMILY HISTORY SERIALIZER ====================
+class FamilyHistorySerializer(serializers.ModelSerializer):
+    """Serializer for Family History"""
+    
+    relationship_display = serializers.CharField(source='get_relationship_display', read_only=True)
+    condition_display = serializers.CharField(source='get_condition_display', read_only=True)
+    risk_display = serializers.CharField(source='get_risk_display', read_only=True)
+    formatted_created_at = serializers.SerializerMethodField()
+    formatted_updated_at = serializers.SerializerMethodField()
+    age_at_diagnosis_display = serializers.SerializerMethodField()
+    genetic_risk_category = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FamilyHistory
+        fields = [
+            'id',
+            'user',
+            'relationship',
+            'relationship_display',
+            'condition',
+            'condition_display',
+            'condition_label',
+            'age_at_diagnosis',
+            'age_at_diagnosis_display',
+            'is_deceased',
+            'age_at_death',
+            'notes',
+            'genetic_testing',
+            'genetic_markers',
+            'genetic_risk_score',
+            'genetic_risk_category',
+            'risk',
+            'risk_display',
+            'created_at',
+            'updated_at',
+            'formatted_created_at',
+            'formatted_updated_at'
+        ]
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'genetic_risk_score']
+
+    def get_formatted_created_at(self, obj):
+        """Return formatted created date"""
+        return obj.created_at.strftime("%Y-%m-%d %H:%M") if obj.created_at else None
+
+    def get_formatted_updated_at(self, obj):
+        """Return formatted updated date"""
+        return obj.updated_at.strftime("%Y-%m-%d %H:%M") if obj.updated_at else None
+
+    def get_age_at_diagnosis_display(self, obj):
+        """Return age display with unit"""
+        if obj.age_at_diagnosis:
+            return f"{obj.age_at_diagnosis} years"
+        return "Unknown"
+
+    def get_genetic_risk_category(self, obj):
+        """Categorize genetic risk score"""
+        if obj.genetic_risk_score >= 70:
+            return "High"
+        elif obj.genetic_risk_score >= 40:
+            return "Moderate"
+        elif obj.genetic_risk_score > 0:
+            return "Low"
+        return "Not Calculated"
+
+    def validate(self, data):
+        """Validate family history data"""
+        # Validate age_at_death if is_deceased is True
+        if data.get('is_deceased') and not data.get('age_at_death'):
+            raise serializers.ValidationError({
+                'age_at_death': 'Age at death is required when member is deceased'
+            })
+        
+        # Validate age_at_diagnosis range
+        if data.get('age_at_diagnosis'):
+            if data['age_at_diagnosis'] < 0 or data['age_at_diagnosis'] > 120:
+                raise serializers.ValidationError({
+                    'age_at_diagnosis': 'Age at diagnosis must be between 0 and 120'
+                })
+        
+        # Validate age_at_death range
+        if data.get('age_at_death'):
+            if data['age_at_death'] < 0 or data['age_at_death'] > 120:
+                raise serializers.ValidationError({
+                    'age_at_death': 'Age at death must be between 0 and 120'
+                })
+        
+        return data
+
+
 # ==================== DASHBOARD SERIALIZER ====================
 class DashboardSerializer(serializers.Serializer):
     """Serializer for dashboard data (not a model serializer)"""
@@ -445,6 +535,7 @@ class DashboardSerializer(serializers.Serializer):
     today_medications = MedicationSerializer(many=True)
     recent_symptoms = SymptomSerializer(many=True)
     active_challenges = ChallengeSerializer(many=True)
+    recent_family_history = FamilyHistorySerializer(many=True, required=False)
     stats = serializers.DictField()
 
 

@@ -1,5 +1,5 @@
 // src/services/symptoms.js
-import api from './api';
+import api from './api';  // ✅ Import the default instance
 
 class SymptomsService {
     async getSymptoms() {
@@ -14,20 +14,30 @@ class SymptomsService {
 
     async logSymptom(data) {
         try {
-            // Format the data properly for the backend
-            const formattedData = {
-                symptom_type: data.symptom_type, // Make sure this matches backend choices
-                severity: parseInt(data.severity), // Ensure it's a number
-                date: data.date || new Date().toISOString().split('T')[0],
-                time: data.time || null,
-                notes: data.notes || ''
-            };
-
-            console.log('📤 Logging symptom with data:', formattedData);
-            const response = await api.logSymptom(formattedData);
+            const response = await api.logSymptom(data);
             return response;
         } catch (error) {
             console.error('Error logging symptom:', error);
+            throw error;
+        }
+    }
+
+    async updateSymptom(id, data) {
+        try {
+            const response = await api.updateSymptom(id, data);
+            return response;
+        } catch (error) {
+            console.error('Error updating symptom:', error);
+            throw error;
+        }
+    }
+
+    async deleteSymptom(id) {
+        try {
+            const response = await api.deleteSymptom(id);
+            return response;
+        } catch (error) {
+            console.error('Error deleting symptom:', error);
             throw error;
         }
     }

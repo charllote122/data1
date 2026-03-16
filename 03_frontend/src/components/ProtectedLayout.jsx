@@ -1,32 +1,23 @@
 // src/components/ProtectedLayout.jsx
-import React from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import Layout from './Layout';
-import { ROUTES } from '../constants/routes';
+import React, { useState } from 'react';
+import { Outlet } from 'react-router-dom';
+import Sidebar from './Sidebar';
 
-export function ProtectedLayout() {
-    const { user, loading } = useAuth();
-    const location = useLocation();
+const ProtectedLayout = () => {
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            </div>
-        );
-    }
-
-    // Redirect to login if not authenticated
-    if (!user) {
-        return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />;
-    }
-
-    // Render layout with outlet for protected routes
     return (
-        <Layout>
-            <Outlet />
-        </Layout>
+        <div className="flex h-screen bg-gray-50">
+            <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Main content area with padding */}
+                <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+                    <Outlet />
+                </main>
+            </div>
+        </div>
     );
-}
+};
+
+export default ProtectedLayout;

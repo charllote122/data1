@@ -1,5 +1,5 @@
 // src/services/health.js
-import api from './api';
+import api from './api';  // ✅ Import the default instance
 
 class HealthService {
     async getProfile() {

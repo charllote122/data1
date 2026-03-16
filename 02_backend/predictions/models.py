@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.core.validators import MinValueValidator, MaxValueValidator
 import json
 
 
@@ -205,7 +206,7 @@ class Challenge(models.Model):
     
     def __str__(self):
         return self.title
-    # Add to predictions/models.py
+
 
 class Milestone(models.Model):
     """Milestone achievements for users"""
@@ -240,3 +241,140 @@ class Milestone(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.title}"
+
+
+class FamilyHistory(models.Model):
+    """Model for storing family health history"""
+    
+    RELATIONSHIP_CHOICES = [
+        ('parent', 'Parent'),
+        ('child', 'Child'),
+        ('sibling', 'Sibling'),
+        ('grandparent', 'Grandparent'),
+        ('aunt', 'Aunt'),
+        ('uncle', 'Uncle'),
+        ('cousin', 'Cousin'),
+    ]
+
+    CONDITION_CHOICES = [
+        ('diabetes_t1', 'Type 1 Diabetes'),
+        ('diabetes_t2', 'Type 2 Diabetes'),
+        ('gestational', 'Gestational Diabetes'),
+        ('heart_disease', 'Heart Disease'),
+        ('hypertension', 'Hypertension'),
+        ('stroke', 'Stroke'),
+        ('obesity', 'Obesity'),
+        ('kidney_disease', 'Kidney Disease'),
+    ]
+
+    RISK_LEVEL_CHOICES = [
+        ('low', 'Low'),
+        ('moderate', 'Moderate'),
+        ('high', 'High'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='family_history'
+    )
+    relationship = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES)
+    condition = models.CharField(max_length=20, choices=CONDITION_CHOICES)
+    condition_label = models.CharField(max_length=100, blank=True, help_text="Custom condition name if not in choices")
+    age_at_diagnosis = models.IntegerField(
+        null=True, 
+        blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(120)],
+        help_text="Age when condition was diagnosed"
+    )
+    is_deceased = models.BooleanField(default=False)
+    age_at_death = models.IntegerField(
+        null=True, 
+        blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(120)],
+        help_text="Age at death (if deceased)"
+    )
+    notes = models.TextField(blank=True, help_text="Additional notes about this family member")
+    genetic_testing = models.BooleanField(default=False, help_text="Has undergone genetic testing")
+    genetic_markers = models.CharField(
+        max_length=200, 
+        blank=True,
+        help_text="Genetic markers found (e.g., BRCA1, HLA-DR3/DR4)"
+    )
+    genetic_risk_score = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Calculated genetic risk score (0-100)"
+    )
+    risk = models.CharField(
+        max_length=10, 
+        choices=RISK_LEVEL_CHOICES, 
+        default='low',
+        help_text="Overall risk level based on condition"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['user', 'risk']),
+            models.Index(fields=['user', 'condition']),
+        ]
+        verbose_name = "Family History"
+        verbose_name_plural = "Family Histories"
+
+    def __str__(self):
+        return f"{self.user.username} - {self.get_relationship_display()} - {self.get_condition_display()}"
+
+    def save(self, *args, **kwargs):
+        """Auto-calculate genetic risk score if not provided"""
+        if not self.genetic_risk_score:
+            self.genetic_risk_score = self.calculate_genetic_risk()
+        super().save(*args, **kwargs)
+
+    def calculate_genetic_risk(self):
+        """Calculate genetic risk score based on relationship and condition"""
+        score = 0
+        
+        # Base risk from condition
+        if self.risk == 'high':
+            score += 40
+        elif self.risk == 'moderate':
+            score += 20
+        
+        # Relationship factor
+        if self.relationship in ['parent', 'child', 'sibling']:
+            score += 30
+        elif self.relationship in ['grandparent']:
+            score += 15
+        
+        # Age factor (earlier diagnosis = higher genetic component)
+        if self.age_at_diagnosis and self.age_at_diagnosis < 40:
+            score += 20
+        elif self.age_at_diagnosis and self.age_at_diagnosis < 60:
+            score += 10
+        
+        # Genetic testing confirmation
+        if self.genetic_testing and self.genetic_markers:
+            score += 25
+        
+        return min(100, score)
+
+    def get_genetic_risk_category(self):
+        """Get category based on genetic risk score"""
+        if self.genetic_risk_score >= 70:
+            return "High"
+        elif self.genetic_risk_score >= 40:
+            return "Moderate"
+        elif self.genetic_risk_score > 0:
+            return "Low"
+        return "Not Calculated"
+
+    def get_condition_display_with_details(self):
+        """Get condition display with age if available"""
+        base = self.get_condition_display()
+        if self.age_at_diagnosis:
+            return f"{base} (Age {self.age_at_diagnosis})"
+        return base

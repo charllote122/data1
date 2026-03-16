@@ -10,9 +10,10 @@ import { useNotification } from '../../context/NotificationContext';
 import {
     PencilIcon,
     ArrowLeftIcon,
-    HeartIcon,
-    TrashIcon
+    TrashIcon,
+    HeartIcon
 } from '@heroicons/react/24/outline';
+import { RELATIONSHIP_OPTIONS, CONDITION_OPTIONS } from './constants';
 
 const schema = yup.object({
     relationship: yup.string().required('Relationship is required'),
@@ -25,131 +26,113 @@ const schema = yup.object({
     notes: yup.string().max(500, 'Notes must be less than 500 characters'),
 });
 
-const RELATIONSHIP_OPTIONS = [
-    { value: 'parent', label: 'Parent' },
-    { value: 'child', label: 'Child' },
-    { value: 'sibling', label: 'Sibling' },
-    { value: 'grandparent', label: 'Grandparent' },
-    { value: 'aunt', label: 'Aunt' },
-    { value: 'uncle', label: 'Uncle' },
-    { value: 'cousin', label: 'Cousin' },
-];
-
-const CONDITION_OPTIONS = [
-    { value: 'diabetes_t1', label: 'Type 1 Diabetes', emoji: '🩸' },
-    { value: 'diabetes_t2', label: 'Type 2 Diabetes', emoji: '🩸' },
-    { value: 'gestational', label: 'Gestational Diabetes', emoji: '🤰' },
-    { value: 'heart_disease', label: 'Heart Disease', emoji: '❤️' },
-    { value: 'hypertension', label: 'Hypertension', emoji: '💓' },
-    { value: 'stroke', label: 'Stroke', emoji: '🧠' },
-    { value: 'obesity', label: 'Obesity', emoji: '⚖️' },
-    { value: 'kidney_disease', label: 'Kidney Disease', emoji: '🫀' },
-];
-
 const EditFamilyMember = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { familyHistory, updateFamilyMember, removeFamilyMember } = useHealth();
+    const { getFamilyMember, updateFamilyMember, deleteFamilyMember } = useHealth();
     const { showNotification } = useNotification();
-    const [loading, setLoading] = useState(false);
-    const [deleteLoading, setDeleteLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-    const { register, handleSubmit, formState: { errors }, reset } = useForm({
-        resolver: yupResolver(schema),
-        defaultValues: {
-            relationship: '',
-            condition: '',
-            age_at_diagnosis: '',
-            notes: '',
-        },
+    const { register, handleSubmit, formState: { errors }, reset, watch } = useForm({
+        resolver: yupResolver(schema)
     });
 
-    useEffect(() => {
-        const member = familyHistory.find(m => m.id === parseInt(id));
-        if (member) {
-            reset({
-                relationship: member.relationship,
-                condition: member.condition,
-                age_at_diagnosis: member.age_at_diagnosis || '',
-                notes: member.notes || '',
-            });
-        } else {
-            showNotification('error', 'Family member not found');
-            navigate('/family');
-        }
-    }, [id, familyHistory, reset, navigate, showNotification]);
+    const selectedCondition = watch('condition');
 
-    const onSubmit = async (data) => {
-        setLoading(true);
+    useEffect(() => {
+        loadFamilyMember();
+    }, [id]);
+
+    const loadFamilyMember = async () => {
         try {
-            const result = await updateFamilyMember(id, data);
-            if (result.success) {
-                showNotification('success', 'Family member updated successfully');
-                navigate('/family');
-            } else {
-                showNotification('error', result.error || 'Failed to update family member');
+            const result = await getFamilyMember(id);
+            if (result?.success && result.data) {
+                reset({
+                    relationship: result.data.relationship,
+                    condition: result.data.condition,
+                    age_at_diagnosis: result.data.age_at_diagnosis || '',
+                    notes: result.data.notes || ''
+                });
             }
         } catch (error) {
-            showNotification('error', error.message || 'Failed to update family member');
+            showNotification('error', 'Failed to load family member');
+            navigate('/family');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleDelete = async () => {
-        if (window.confirm('Are you sure you want to delete this family member?')) {
-            setDeleteLoading(true);
-            try {
-                const result = await removeFamilyMember(id);
-                if (result.success) {
-                    showNotification('success', 'Family member removed successfully');
-                    navigate('/family');
-                } else {
-                    showNotification('error', result.error || 'Failed to remove family member');
-                }
-            } catch (error) {
-                showNotification('error', error.message || 'Failed to remove family member');
-            } finally {
-                setDeleteLoading(false);
+    const onSubmit = async (data) => {
+        setSaving(true);
+        try {
+            const result = await updateFamilyMember(id, data);
+            if (result?.success) {
+                showNotification('success', 'Family member updated successfully');
+                navigate('/family');
             }
+        } catch (error) {
+            showNotification('error', 'Failed to update family member');
+        } finally {
+            setSaving(false);
         }
     };
+
+    const handleDelete = async () => {
+        try {
+            const result = await deleteFamilyMember(id);
+            if (result?.success) {
+                showNotification('success', 'Family member deleted successfully');
+                navigate('/family');
+            }
+        } catch (error) {
+            showNotification('error', 'Failed to delete family member');
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-8 px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mx-auto">
-                <button
-                    onClick={() => navigate('/family')}
-                    className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors group"
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6"
                 >
-                    <ArrowLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                    Back to Family History
-                </button>
+                    <button
+                        onClick={() => navigate('/family')}
+                        className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors group"
+                    >
+                        <ArrowLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        Back to Family History
+                    </button>
+
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+                            <PencilIcon className="w-6 h-6 text-indigo-600" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900">Edit Family Member</h1>
+                            <p className="text-gray-600 mt-1">Update family health history record</p>
+                        </div>
+                    </div>
+                </motion.div>
 
                 <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
                     className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-gray-100"
                 >
                     <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
-                        <div className="flex items-center justify-between">
-                            <h1 className="text-xl font-semibold text-white flex items-center gap-2">
-                                <PencilIcon className="w-5 h-5" />
-                                Edit Family Member
-                            </h1>
-                            <button
-                                onClick={handleDelete}
-                                disabled={deleteLoading}
-                                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition disabled:opacity-50 flex items-center gap-2"
-                            >
-                                {deleteLoading ? (
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                ) : (
-                                    <TrashIcon className="w-4 h-4" />
-                                )}
-                                Delete
-                            </button>
-                        </div>
+                        <h2 className="text-xl font-semibold text-white">Edit Health Record</h2>
                     </div>
 
                     <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-6">
@@ -185,7 +168,7 @@ const EditFamilyMember = () => {
                                     <label
                                         key={option.value}
                                         className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all
-                                            ${watch('condition') === option.value
+                                            ${selectedCondition === option.value
                                                 ? 'border-indigo-500 bg-indigo-50'
                                                 : 'border-gray-200 hover:bg-gray-50'
                                             }`}
@@ -217,8 +200,6 @@ const EditFamilyMember = () => {
                                 className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none transition
                                     ${errors.age_at_diagnosis ? 'border-red-300 bg-red-50' : 'border-gray-200 focus:border-indigo-500'}`}
                                 placeholder="Enter age at diagnosis"
-                                min="0"
-                                max="120"
                             />
                             {errors.age_at_diagnosis && (
                                 <p className="mt-1 text-sm text-red-600">{errors.age_at_diagnosis.message}</p>
@@ -242,20 +223,23 @@ const EditFamilyMember = () => {
                             )}
                         </div>
 
-                        {/* Submit Buttons */}
+                        {/* Action Buttons */}
                         <div className="flex gap-4 pt-4">
                             <button
                                 type="submit"
-                                disabled={loading}
-                                className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={saving}
+                                className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
                             >
-                                {loading ? (
-                                    <div className="flex items-center justify-center gap-2">
+                                {saving ? (
+                                    <>
                                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                         <span>Saving...</span>
-                                    </div>
+                                    </>
                                 ) : (
-                                    'Save Changes'
+                                    <>
+                                        <HeartIcon className="w-5 h-5" />
+                                        <span>Update Record</span>
+                                    </>
                                 )}
                             </button>
                             <button
@@ -266,8 +250,54 @@ const EditFamilyMember = () => {
                                 Cancel
                             </button>
                         </div>
+
+                        {/* Delete Button */}
+                        <div className="border-t border-gray-200 pt-6">
+                            <button
+                                type="button"
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="w-full px-6 py-3 border-2 border-red-300 text-red-600 rounded-xl font-medium hover:bg-red-50 transition flex items-center justify-center gap-2"
+                            >
+                                <TrashIcon className="w-5 h-5" />
+                                Delete Family Member
+                            </button>
+                        </div>
                     </form>
                 </motion.div>
+
+                {/* Delete Confirmation Modal */}
+                {showDeleteConfirm && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9 }}
+                            animate={{ scale: 1 }}
+                            className="bg-white rounded-2xl p-6 max-w-md w-full"
+                        >
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirm Delete</h3>
+                            <p className="text-gray-600 mb-6">
+                                Are you sure you want to delete this family member's health record? This action cannot be undone.
+                            </p>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={handleDelete}
+                                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                                >
+                                    Delete
+                                </button>
+                                <button
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
             </div>
         </div>
     );

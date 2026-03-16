@@ -1,5 +1,5 @@
 // src/pages/prediction/NewPrediction.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
@@ -14,14 +14,14 @@ import {
     HeartIcon,
     SparklesIcon,
     ShieldCheckIcon,
-    ClockIcon
+    ClockIcon,
+    InformationCircleIcon
 } from '@heroicons/react/24/outline';
-import FormSteps from './components/FormSteps';
 import api from '../../services/api';
 import { useNotification } from '../../context/NotificationContext';
 import { ROUTES } from '../../constants/routes';
-import toast from 'react-hot-toast';
 
+// Form steps configuration
 const steps = [
     { id: 'demographics', name: 'Demographics', description: 'Basic information' },
     { id: 'conditions', name: 'Health Conditions', description: 'Medical history' },
@@ -29,6 +29,7 @@ const steps = [
     { id: 'health', name: 'Health Status', description: 'Current health' },
 ];
 
+// Validation schema
 const schema = yup.object({
     // Demographics
     age: yup
@@ -82,6 +83,46 @@ const schema = yup.object({
     diffWalk: yup.boolean(),
 });
 
+// Progress Steps Component
+const FormSteps = ({ steps, currentStep }) => {
+    return (
+        <div className="mb-8">
+            <div className="flex items-center justify-between">
+                {steps.map((step, index) => (
+                    <div key={step.id} className="flex-1 relative">
+                        {index < steps.length - 1 && (
+                            <div className={`absolute top-5 left-1/2 w-full h-1 transition-colors ${
+                                index < currentStep ? 'bg-green-500' : 'bg-gray-200'
+                            }`} />
+                        )}
+                        <div className="relative flex flex-col items-center">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold z-10 transition-all ${
+                                index < currentStep
+                                    ? 'bg-green-500 text-white'
+                                    : index === currentStep
+                                    ? 'bg-blue-600 text-white ring-4 ring-blue-100'
+                                    : 'bg-gray-200 text-gray-600'
+                            }`}>
+                                {index < currentStep ? <CheckIcon className="w-5 h-5" /> : index + 1}
+                            </div>
+                            <div className="mt-2 text-center">
+                                <p className={`text-sm font-medium ${
+                                    index === currentStep ? 'text-blue-600' : 'text-gray-600'
+                                }`}>
+                                    {step.name}
+                                </p>
+                                <p className="text-xs text-gray-500 hidden sm:block">
+                                    {step.description}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const NewPrediction = () => {
     const navigate = useNavigate();
     const { showNotification } = useNotification();
@@ -112,23 +153,15 @@ const NewPrediction = () => {
         },
     });
 
-    const formData = watch();
-
-    const nextStep = async () => {
-        const fieldsToValidate = getFieldsForStep(currentStep);
-        const isStepValid = await trigger(fieldsToValidate);
-        if (isStepValid) {
-            setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        } else {
-            showNotification('error', 'Please fill in all required fields correctly');
+    // Load remaining attempts on mount
+    useEffect(() => {
+        const saved = localStorage.getItem('remaining_predictions');
+        if (saved) {
+            setRemainingAttempts(parseInt(saved));
         }
-    };
+    }, []);
 
-    const prevStep = () => {
-        setCurrentStep((prev) => Math.max(prev - 1, 0));
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+    const formData = watch();
 
     const getFieldsForStep = (step) => {
         switch (step) {
@@ -143,6 +176,23 @@ const NewPrediction = () => {
             default:
                 return [];
         }
+    };
+
+    const nextStep = async () => {
+        const fieldsToValidate = getFieldsForStep(currentStep);
+        const isStepValid = await trigger(fieldsToValidate);
+        
+        if (isStepValid) {
+            setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            showNotification('error', 'Please fill in all required fields correctly');
+        }
+    };
+
+    const prevStep = () => {
+        setCurrentStep((prev) => Math.max(prev - 1, 0));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const onSubmit = async (data) => {
@@ -205,7 +255,10 @@ const NewPrediction = () => {
         } catch (error) {
             console.error('❌ Prediction error:', error);
 
-            if (error.status === 400) {
+            // Handle specific error types
+            if (error.isHtmlError) {
+                showNotification('error', 'Server connection error. Please check if backend is running.');
+            } else if (error.status === 400) {
                 showNotification('error', 'Please check your input values');
             } else if (error.status === 429) {
                 showNotification('error', 'Too many attempts. Please try again later.');
@@ -217,13 +270,37 @@ const NewPrediction = () => {
         }
     };
 
+    // Get risk factor count
+    const getRiskFactorCount = () => {
+        return [
+            formData.highBP && 'High BP',
+            formData.highChol && 'High Chol',
+            formData.smoker && 'Smoker',
+        ].filter(Boolean).length;
+    };
+
+    // Get health status label
+    const getHealthStatusLabel = () => {
+        const healthMap = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'];
+        return healthMap[formData.genHealth - 1] || 'Not specified';
+    };
+
     return (
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="mb-8"
             >
+                <button
+                    onClick={() => navigate(-1)}
+                    className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+                >
+                    <ArrowLeftIcon className="w-5 h-5 mr-2" />
+                    <span>Back</span>
+                </button>
+
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900">New Risk Assessment</h1>
@@ -243,12 +320,14 @@ const NewPrediction = () => {
             {/* Progress Steps */}
             <FormSteps steps={steps} currentStep={currentStep} />
 
+            {/* Main Form Card */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
                 className="mt-8 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
             >
+                {/* Step Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
                     <h2 className="text-xl font-semibold text-white">
                         {steps[currentStep].name}
@@ -258,6 +337,7 @@ const NewPrediction = () => {
                     </p>
                 </div>
 
+                {/* Form */}
                 <form onSubmit={handleSubmit(onSubmit)} className="p-6">
                     <AnimatePresence mode="wait">
                         {/* Step 1: Demographics */}
@@ -322,6 +402,16 @@ const NewPrediction = () => {
                                     <p className="text-xs text-gray-500 mt-1">
                                         BMI = weight(kg) / height(m)²
                                     </p>
+                                </div>
+
+                                {/* Info Box */}
+                                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                                    <div className="flex items-start gap-3">
+                                        <InformationCircleIcon className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                        <p className="text-sm text-blue-700">
+                                            Age and BMI are the most important factors in diabetes risk assessment.
+                                        </p>
+                                    </div>
                                 </div>
                             </motion.div>
                         )}
@@ -578,19 +668,11 @@ const NewPrediction = () => {
                     </div>
                     <div>
                         <p className="text-gray-500">General Health</p>
-                        <p className="font-medium text-gray-900">
-                            {formData.genHealth ? ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'][formData.genHealth - 1] : '-'}
-                        </p>
+                        <p className="font-medium text-gray-900">{getHealthStatusLabel()}</p>
                     </div>
                     <div>
                         <p className="text-gray-500">Risk Factors</p>
-                        <p className="font-medium text-gray-900">
-                            {[
-                                formData.highBP && 'High BP',
-                                formData.highChol && 'High Chol',
-                                formData.smoker && 'Smoker',
-                            ].filter(Boolean).length || 0} factors
-                        </p>
+                        <p className="font-medium text-gray-900">{getRiskFactorCount()} factors</p>
                     </div>
                 </div>
             </motion.div>

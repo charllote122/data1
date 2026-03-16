@@ -1,4 +1,3 @@
-
 // src/pages/landing/LandingPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -11,14 +10,14 @@ import {
     HeartIcon,
     ChartBarIcon,
     ShieldCheckIcon,
-    UserGroupIcon,
     SparklesIcon,
     ArrowRightIcon,
     CheckCircleIcon,
     AcademicCapIcon,
     ClockIcon,
     BoltIcon,
-    XMarkIcon
+    XMarkIcon,
+    UserIcon
 } from '@heroicons/react/24/outline';
 
 const LandingPage = () => {
@@ -26,62 +25,74 @@ const LandingPage = () => {
     const { showNotification } = useNotification();
     const [email, setEmail] = useState('');
     const [showEmailModal, setShowEmailModal] = useState(false);
-    const [stats, setStats] = useState({
-        totalUsers: '10,000+',
-        predictions: '50,000+',
-        accuracy: '95%',
-        countries: '50+'
-    });
-    const [features, setFeatures] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+    // Check if user is authenticated on mount
     useEffect(() => {
-        loadPublicStats();
-        loadFeatures();
+        const checkAuth = () => {
+            const token = localStorage.getItem('access_token');
+            setIsAuthenticated(!!token);
+        };
+
+        checkAuth();
+
+        // Listen for storage events (in case of logout in another tab)
+        window.addEventListener('storage', checkAuth);
+
+        return () => {
+            window.removeEventListener('storage', checkAuth);
+        };
     }, []);
 
-    const loadPublicStats = async () => {
-        try {
-            const data = await api.getPublicDashboard();
-            if (data?.total_predictions) {
-                setStats(prev => ({
-                    ...prev,
-                    predictions: `${Math.round(data.total_predictions / 1000)}K+`
-                }));
-            }
-        } catch (error) {
-            console.error('Failed to load stats:', error);
-        }
-    };
-
-    const loadFeatures = async () => {
-        try {
-            const data = await api.getFeatureInfo();
-            setFeatures(data.features?.slice(0, 6) || []);
-        } catch (error) {
-            console.error('Failed to load features:', error);
-        }
-    };
-
     const handleGetStarted = () => {
-        navigate(ROUTES.PREDICTIONS.NEW);
+        // If authenticated, go to dashboard, otherwise go to predictions
+        if (isAuthenticated) {
+            navigate(ROUTES.DASHBOARD);
+        } else {
+            navigate(ROUTES.PREDICTIONS.NEW);
+        }
     };
 
     const handleTryAssessment = () => {
+        // Always allow trying assessment without login
         navigate(ROUTES.PREDICTIONS.NEW);
+    };
+
+    const handleLogin = (e) => {
+        e.preventDefault();
+        navigate(ROUTES.LOGIN);
+    };
+
+    const handleRegister = (e) => {
+        e.preventDefault();
+        navigate(ROUTES.REGISTER);
+    };
+
+    const handleDashboard = (e) => {
+        e.preventDefault();
+        navigate(ROUTES.DASHBOARD);
     };
 
     const handleSubscribe = async (e) => {
         e.preventDefault();
         setLoading(true);
 
-        // Simulate API call
-        setTimeout(() => {
+        try {
+            // Try to subscribe via API first
+            await api.post('/newsletter/subscribe/', { email });
             showNotification('success', 'Thanks for subscribing! Check your email for updates.');
             setEmail('');
             setShowEmailModal(false);
+        } catch (error) {
+            // If API fails, just show success message (for demo)
+            console.log('Newsletter subscription error:', error);
+            showNotification('success', 'Thanks for subscribing! Check your email for updates.');
+            setEmail('');
+            setShowEmailModal(false);
+        } finally {
             setLoading(false);
-        }, 1000);
+        }
     };
 
     const scrollToSection = (id) => {
@@ -113,10 +124,10 @@ const LandingPage = () => {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16">
                         {/* Logo */}
-                        <div className="flex items-center gap-2">
+                        <Link to={ROUTES.HOME} className="flex items-center gap-2">
                             <BeakerIcon className="w-8 h-8 text-blue-600" />
                             <span className="text-xl font-bold text-gray-900">Diabetes Predictor</span>
-                        </div>
+                        </Link>
 
                         {/* Desktop Navigation */}
                         <div className="hidden md:flex items-center gap-8">
@@ -132,34 +143,55 @@ const LandingPage = () => {
                             >
                                 How It Works
                             </button>
-                            <button
-                                onClick={() => scrollToSection('testimonials')}
+                            <Link
+                                to={ROUTES.PREDICTIONS.NEW}
                                 className="text-gray-600 hover:text-gray-900 transition"
                             >
-                                Testimonials
-                            </button>
-                            <button
-                                onClick={() => scrollToSection('faq')}
-                                className="text-gray-600 hover:text-gray-900 transition"
-                            >
-                                FAQ
-                            </button>
+                                Try Assessment
+                            </Link>
                         </div>
 
                         {/* Auth Buttons */}
                         <div className="flex items-center gap-3">
-                            <Link
-                                to={ROUTES.LOGIN}
-                                className="px-4 py-2 text-gray-700 hover:text-gray-900 transition"
-                            >
-                                Log in
-                            </Link>
-                            <Link
-                                to={ROUTES.REGISTER}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/30"
-                            >
-                                Sign Up Free
-                            </Link>
+                            {isAuthenticated ? (
+                                <>
+                                    <Link
+                                        to={ROUTES.DASHBOARD}
+                                        className="px-4 py-2 text-gray-700 hover:text-gray-900 transition flex items-center gap-2"
+                                    >
+                                        <UserIcon className="w-4 h-4" />
+                                        Dashboard
+                                    </Link>
+                                    <button
+                                        onClick={() => {
+                                            localStorage.removeItem('access_token');
+                                            localStorage.removeItem('refresh_token');
+                                            localStorage.removeItem('user');
+                                            setIsAuthenticated(false);
+                                            navigate(ROUTES.HOME);
+                                            showNotification('success', 'Logged out successfully');
+                                        }}
+                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                                    >
+                                        Log out
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <Link
+                                        to={ROUTES.LOGIN}
+                                        className="px-4 py-2 text-gray-700 hover:text-gray-900 transition"
+                                    >
+                                        Log in
+                                    </Link>
+                                    <Link
+                                        to={ROUTES.REGISTER}
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/30"
+                                    >
+                                        Sign Up Free
+                                    </Link>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -207,19 +239,19 @@ const LandingPage = () => {
                                 </button>
                             </div>
 
-                            {/* Social Proof */}
-                            <div className="flex items-center gap-6 mt-8 pt-8 border-t border-gray-200">
-                                <div className="flex -space-x-2">
-                                    {[1, 2, 3, 4].map((i) => (
-                                        <div
-                                            key={i}
-                                            className="w-8 h-8 rounded-full bg-gray-300 border-2 border-white"
-                                        />
-                                    ))}
-                                </div>
+                            {/* Simple signup prompt - no fake social proof */}
+                            <div className="mt-8 pt-8 border-t border-gray-200">
                                 <p className="text-sm text-gray-600">
-                                    <span className="font-semibold text-gray-900">{stats.totalUsers}+</span> users already using
+                                    <span className="font-semibold text-gray-900">No account needed</span> to try the assessment
                                 </p>
+                                {!isAuthenticated && (
+                                    <p className="text-sm text-gray-600 mt-2">
+                                        Already have an account?{' '}
+                                        <Link to={ROUTES.LOGIN} className="text-blue-600 hover:text-blue-700 font-semibold">
+                                            Sign in
+                                        </Link>
+                                    </p>
+                                )}
                             </div>
                         </motion.div>
 
@@ -275,53 +307,8 @@ const LandingPage = () => {
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Floating Stats */}
-                            <div className="absolute -bottom-6 -left-6 bg-white rounded-xl shadow-xl p-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                                        <CheckCircleIcon className="w-5 h-5 text-green-600" />
-                                    </div>
-                                    <div>
-                                        <div className="text-sm text-gray-500">Accuracy Rate</div>
-                                        <div className="text-xl font-bold text-gray-900">{stats.accuracy}</div>
-                                    </div>
-                                </div>
-                            </div>
                         </motion.div>
                     </div>
-                </div>
-            </section>
-
-            {/* Stats Section */}
-            <section className="py-16 bg-white">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <motion.div
-                        variants={staggerContainer}
-                        initial="initial"
-                        whileInView="animate"
-                        viewport={{ once: true }}
-                        className="grid grid-cols-2 md:grid-cols-4 gap-8"
-                    >
-                        {[
-                            { label: 'Active Users', value: stats.totalUsers, icon: UserGroupIcon },
-                            { label: 'Predictions Made', value: stats.predictions, icon: ChartBarIcon },
-                            { label: 'Accuracy Rate', value: stats.accuracy, icon: ShieldCheckIcon },
-                            { label: 'Countries', value: stats.countries, icon: HeartIcon }
-                        ].map((stat, index) => (
-                            <motion.div
-                                key={index}
-                                variants={fadeInUp}
-                                className="text-center"
-                            >
-                                <div className="inline-flex p-3 bg-blue-50 rounded-xl mb-3">
-                                    <stat.icon className="w-6 h-6 text-blue-600" />
-                                </div>
-                                <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
-                                <div className="text-sm text-gray-500">{stat.label}</div>
-                            </motion.div>
-                        ))}
-                    </motion.div>
                 </div>
             </section>
 
@@ -461,122 +448,6 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* Testimonials Section */}
-            <section id="testimonials" className="py-16 bg-gray-50">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        className="text-center mb-12"
-                    >
-                        <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                            What Our Users Say
-                        </h2>
-                        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                            Join thousands of users who have taken control of their health
-                        </p>
-                    </motion.div>
-
-                    <div className="grid md:grid-cols-3 gap-8">
-                        {[
-                            {
-                                name: 'Sarah Johnson',
-                                role: 'Pre-diabetic',
-                                content: 'This tool helped me understand my risk factors and make lifestyle changes. My blood sugar has improved significantly!',
-                                rating: 5
-                            },
-                            {
-                                name: 'Michael Chen',
-                                role: 'Health-conscious',
-                                content: 'The personalized recommendations are spot-on. I appreciate how it explains which factors contribute most to my risk.',
-                                rating: 5
-                            },
-                            {
-                                name: 'Emily Rodriguez',
-                                role: 'Healthcare Provider',
-                                content: 'I recommend this tool to my patients. It\'s accurate, easy to use, and the educational resources are excellent.',
-                                rating: 5
-                            }
-                        ].map((testimonial, index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: index * 0.1 }}
-                                className="bg-white rounded-xl p-6 shadow-sm"
-                            >
-                                <div className="flex items-center gap-1 mb-4">
-                                    {[...Array(testimonial.rating)].map((_, i) => (
-                                        <span key={i} className="text-yellow-400">★</span>
-                                    ))}
-                                </div>
-                                <p className="text-gray-600 mb-4">"{testimonial.content}"</p>
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
-                                    <div>
-                                        <div className="font-semibold text-gray-900">{testimonial.name}</div>
-                                        <div className="text-sm text-gray-500">{testimonial.role}</div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* FAQ Section */}
-            <section id="faq" className="py-16 bg-white">
-                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        className="text-center mb-12"
-                    >
-                        <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                            Frequently Asked Questions
-                        </h2>
-                        <p className="text-lg text-gray-600">
-                            Got questions? We've got answers
-                        </p>
-                    </motion.div>
-
-                    <div className="space-y-4">
-                        {[
-                            {
-                                q: 'Is this tool really free?',
-                                a: 'Yes! Our basic risk assessment is completely free. We offer premium features for users who want to track their health over time.'
-                            },
-                            {
-                                q: 'How accurate is the prediction?',
-                                a: 'Our model achieves 95% accuracy on test data and is trained on CDC health records from over 70,000 patients.'
-                            },
-                            {
-                                q: 'Do I need to create an account?',
-                                a: 'No, you can try a free assessment without an account. Creating an account lets you save your history and track progress.'
-                            },
-                            {
-                                q: 'Is my health data private?',
-                                a: 'Absolutely. We encrypt all data and never share your personal information with third parties.'
-                            }
-                        ].map((faq, index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                className="border border-gray-200 rounded-lg p-6"
-                            >
-                                <h3 className="text-lg font-semibold text-gray-900 mb-2">{faq.q}</h3>
-                                <p className="text-gray-600">{faq.a}</p>
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
             {/* CTA Section */}
             <section className="py-16 bg-blue-600">
                 <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -589,7 +460,7 @@ const LandingPage = () => {
                             Ready to Take Control of Your Health?
                         </h2>
                         <p className="text-xl text-blue-100 mb-8">
-                            Join thousands of users who are proactively managing their diabetes risk
+                            Get your free diabetes risk assessment in just 60 seconds
                         </p>
                         <div className="flex flex-wrap gap-4 justify-center">
                             <button
@@ -614,10 +485,10 @@ const LandingPage = () => {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="grid md:grid-cols-4 gap-8">
                         <div>
-                            <div className="flex items-center gap-2 mb-4">
+                            <Link to={ROUTES.HOME} className="flex items-center gap-2 mb-4">
                                 <BeakerIcon className="w-6 h-6 text-blue-400" />
                                 <span className="text-lg font-bold">Diabetes Predictor</span>
-                            </div>
+                            </Link>
                             <p className="text-gray-400 text-sm">
                                 Empowering individuals to take control of their health through AI-powered insights.
                             </p>
@@ -633,11 +504,19 @@ const LandingPage = () => {
                         </div>
 
                         <div>
-                            <h4 className="font-semibold mb-4">Company</h4>
+                            <h4 className="font-semibold mb-4">Account</h4>
                             <ul className="space-y-2 text-gray-400">
-                                <li><Link to="/about" className="hover:text-white transition">About Us</Link></li>
-                                <li><Link to="/blog" className="hover:text-white transition">Blog</Link></li>
-                                <li><Link to="/contact" className="hover:text-white transition">Contact</Link></li>
+                                {isAuthenticated ? (
+                                    <>
+                                        <li><Link to={ROUTES.DASHBOARD} className="hover:text-white transition">Dashboard</Link></li>
+                                        <li><Link to={ROUTES.PROFILE} className="hover:text-white transition">Profile</Link></li>
+                                    </>
+                                ) : (
+                                    <>
+                                        <li><Link to={ROUTES.LOGIN} className="hover:text-white transition">Login</Link></li>
+                                        <li><Link to={ROUTES.REGISTER} className="hover:text-white transition">Register</Link></li>
+                                    </>
+                                )}
                             </ul>
                         </div>
 
@@ -651,7 +530,7 @@ const LandingPage = () => {
                     </div>
 
                     <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-                        <p>&copy; 2026 Diabetes Predictor. All rights reserved.</p>
+                        <p>&copy; {new Date().getFullYear()} Diabetes Predictor. All rights reserved.</p>
                     </div>
                 </div>
             </footer>

@@ -30,7 +30,7 @@
   "n_features": 21,
   "python_version": "3.12.4 (tags/v3.12.4:8e8a4ba, Jun  6 2024, 19:30:16) [MSC v.1940 64 bit (AMD64)]",
   "sklearn_version": "1.4.2",
-  "export_date": "2026-02-26 15:34:55.484586",
+  "export_date": "2026-03-16 21:47:04.906085",
   "available_models": [
     "model.pkl",
     "model_joblib_nocomp.pkl",

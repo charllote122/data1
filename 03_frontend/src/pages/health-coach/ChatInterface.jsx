@@ -1,347 +1,563 @@
+// src/pages/health-coach/ChatInterface.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     PaperAirplaneIcon,
-    ChatBubbleLeftRightIcon,
-    LightBulbIcon,
-    BeakerIcon,
-    ClockIcon,
-    DocumentTextIcon,
     SparklesIcon,
+    UserCircleIcon,
+    ChatBubbleLeftRightIcon,
+    MicrophoneIcon,
+    StopIcon,
+    ClockIcon,
+    BeakerIcon,
 } from '@heroicons/react/24/outline';
-import api from '../../services/api';
+import { useAuth } from '../../hooks/useAuth';
+import aiService from '../../services/aiService';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 
 const ChatInterface = () => {
-    const [messages, setMessages] = useState([
-        {
-            id: 1,
-            type: 'bot',
-            content: "👋 Hi! I'm your AI Health Coach. I can help you with:\n\n• Diabetes-related questions\n• Diet and nutrition advice\n• Medication reminders\n• Symptom checking\n• Lifestyle recommendations\n\nWhat would you like to know today?",
-            timestamp: new Date(),
-        },
-    ]);
+    const { user } = useAuth();
+    const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState('chat');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [loadingHistory, setLoadingHistory] = useState(true);
+    const [showDebug, setShowDebug] = useState(false);
     const messagesEndRef = useRef(null);
+    const inputRef = useRef(null);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
+    // Suggested questions
+    const suggestedQuestions = [
+        "What foods should I avoid with diabetes?",
+        "Give me a tip to lower blood sugar",
+        "What's a healthy breakfast?",
+        "How can I exercise safely with diabetes?",
+        "What symptoms should I watch for?",
+    ];
 
+    // Scroll to bottom when messages change
     useEffect(() => {
-        scrollToBottom();
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const handleSendMessage = async () => {
-        if (!inputMessage.trim()) return;
+    // Load chat history on mount
+    useEffect(() => {
+        loadChatHistory();
+    }, []);
 
-        const userMessage = {
-            id: messages.length + 1,
-            type: 'user',
-            content: inputMessage,
-            timestamp: new Date(),
-        };
-
-        setMessages(prev => [...prev, userMessage]);
-        setInputMessage('');
-        setLoading(true);
-
+    const loadChatHistory = async () => {
+        setLoadingHistory(true);
         try {
-            // Simulate AI response (replace with actual API call)
-            setTimeout(() => {
-                const botResponse = generateAIResponse(inputMessage);
-                setMessages(prev => [...prev, {
-                    id: prev.length + 1,
-                    type: 'bot',
-                    content: botResponse,
-                    timestamp: new Date(),
-                }]);
-                setLoading(false);
-            }, 1500);
+            const response = await aiService.getChatHistory();
+            console.log('📥 Chat history response:', response);
+
+            if (response && response.success) {
+                if (Array.isArray(response.history) && response.history.length > 0) {
+                    // Convert history to message format
+                    const historyMessages = response.history.flatMap(item => [
+                        {
+                            id: `user-${item.id || Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            text: item.message,
+                            sender: 'user',
+                            timestamp: item.created_at || new Date().toISOString(),
+                        },
+                        {
+                            id: `ai-${item.id || Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            text: item.response,
+                            sender: 'ai',
+                            timestamp: item.created_at || new Date().toISOString(),
+                            model: item.model_used,
+                        }
+                    ]);
+                    setMessages(historyMessages);
+                } else {
+                    setMessages([]);
+                }
+            } else {
+                console.log('No chat history found');
+                setMessages([]);
+            }
         } catch (error) {
-            toast.error('Failed to get response');
-            setLoading(false);
+            console.error('❌ Failed to load chat history:', error);
+            toast.error('Failed to load chat history');
+            setMessages([]);
+        } finally {
+            setLoadingHistory(false);
         }
     };
 
-    const generateAIResponse = (message) => {
-        const lowercaseMsg = message.toLowerCase();
+    const testConnection = async () => {
+        try {
+            toast.loading('Testing AI connection...', { id: 'ai-test' });
+            const result = await aiService.testAIConnection();
+            console.log('🔍 AI Test Result:', result);
 
-        if (lowercaseMsg.includes('diet') || lowercaseMsg.includes('eat') || lowercaseMsg.includes('food')) {
-            return "🥗 **Diet Recommendations for Diabetes:**\n\n" +
-                "• Focus on non-starchy vegetables (leafy greens, broccoli, cauliflower)\n" +
-                "• Choose lean proteins (chicken, fish, tofu, legumes)\n" +
-                "• Include healthy fats (avocado, nuts, olive oil)\n" +
-                "• Limit refined carbs and sugary foods\n" +
-                "• Eat regular meals to maintain stable blood sugar\n\n" +
-                "Would you like specific meal ideas or a personalized meal plan?";
+            if (result.success) {
+                if (result.hasResponse) {
+                    toast.success(
+                        `✅ AI service is working!\nModel: ${result.model || 'Unknown'}`,
+                        { id: 'ai-test', duration: 5000 }
+                    );
+                } else {
+                    toast.error(
+                        `⚠️ AI responded but no content returned.\nCheck server configuration.`,
+                        { id: 'ai-test', duration: 5000 }
+                    );
+                }
+            } else {
+                toast.error(
+                    `❌ AI test failed: ${result.message}`,
+                    { id: 'ai-test', duration: 5000 }
+                );
+            }
+        } catch (error) {
+            toast.error('Test failed: ' + error.message, { id: 'ai-test' });
         }
+    };
 
-        else if (lowercaseMsg.includes('exercise') || lowercaseMsg.includes('workout') || lowercaseMsg.includes('activity')) {
-            return "🏃 **Exercise Recommendations:**\n\n" +
-                "• Aim for 150 minutes of moderate activity per week\n" +
-                "• Include both cardio and strength training\n" +
-                "• Try: brisk walking, swimming, cycling, yoga\n" +
-                "• Check blood sugar before and after exercise\n" +
-                "• Stay hydrated and carry a snack\n\n" +
-                "Start with 10-15 minute sessions and gradually increase!";
-        }
+    const sendMessage = async () => {
+        if (!inputMessage.trim() || isLoading) return;
 
-        else if (lowercaseMsg.includes('medication') || lowercaseMsg.includes('medicine') || lowercaseMsg.includes('pill')) {
-            return "💊 **Medication Tips:**\n\n" +
-                "• Take medications at the same time daily\n" +
-                "• Use a pill organizer to avoid missed doses\n" +
-                "• Set reminders on your phone\n" +
-                "• Never skip doses without consulting your doctor\n" +
-                "• Keep a list of all medications and dosages\n\n" +
-                "Would you like to set up medication reminders?";
-        }
+        // Add user message
+        const userMessage = {
+            id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            text: inputMessage,
+            sender: 'user',
+            timestamp: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, userMessage]);
 
-        else if (lowercaseMsg.includes('symptom') || lowercaseMsg.includes('feeling') || lowercaseMsg.includes('pain')) {
-            return "🔍 **Symptom Checker:**\n\n" +
-                "Common diabetes symptoms to watch for:\n" +
-                "• Increased thirst and urination\n" +
-                "• Unexplained weight loss\n" +
-                "• Fatigue and weakness\n" +
-                "• Blurred vision\n" +
-                "• Slow-healing wounds\n" +
-                "• Numbness in hands/feet\n\n" +
-                "Please describe your symptoms in more detail for personalized advice.";
-        }
+        const sentMessage = inputMessage;
+        setInputMessage('');
+        setIsLoading(true);
 
-        else if (lowercaseMsg.includes('blood sugar') || lowercaseMsg.includes('glucose')) {
-            return "📊 **Blood Sugar Management:**\n\n" +
-                "• Target range: 80-130 mg/dL before meals\n" +
-                "• Check regularly and log your readings\n" +
-                "• Understand how food affects your levels\n" +
-                "• Stay consistent with meal timing\n" +
-                "• Contact your doctor if readings are consistently high/low\n\n" +
-                "Would you like to track your blood sugar readings?";
-        }
+        try {
+            console.log('📤 Sending message:', sentMessage);
 
-        else if (lowercaseMsg.includes('stress') || lowercaseMsg.includes('anxiety') || lowercaseMsg.includes('mental')) {
-            return "🧘 **Stress Management:**\n\n" +
-                "• Practice deep breathing exercises\n" +
-                "• Try meditation or mindfulness\n" +
-                "• Get adequate sleep (7-9 hours)\n" +
-                "• Stay connected with loved ones\n" +
-                "• Consider talking to a counselor\n\n" +
-                "Stress can affect blood sugar levels. Would you like some relaxation techniques?";
-        }
+            const response = await aiService.sendChatMessage(sentMessage);
+            console.log('📥 Received response:', response);
 
-        else {
-            return "I'm here to help with your diabetes management! I can provide information about:\n\n" +
-                "• Diet and nutrition 🥗\n" +
-                "• Exercise and activity 🏃\n" +
-                "• Medication management 💊\n" +
-                "• Symptom checking 🔍\n" +
-                "• Blood sugar monitoring 📊\n" +
-                "• Stress management 🧘\n\n" +
-                "What would you like to learn more about?";
+            // Check if response exists
+            if (!response) {
+                console.error('Response is null or undefined');
+                throw new Error('No response from server');
+            }
+
+            let aiResponseText = '';
+            let modelInfo = 'AI Model';
+
+            // Handle different response formats
+            if (response.success) {
+                // Case 1: response.response exists and is not null
+                if (response.response && response.response !== null) {
+                    // Check if response.response is an object or string
+                    if (typeof response.response === 'object') {
+                        aiResponseText = JSON.stringify(response.response, null, 2);
+                    } else {
+                        aiResponseText = response.response;
+                    }
+                    modelInfo = response.model || 'AI Model';
+                }
+                // Case 2: response.response is null but we have other fields
+                else if (response.message) {
+                    aiResponseText = response.message;
+                    modelInfo = response.model || 'AI Model';
+                }
+                else if (response.analysis) {
+                    aiResponseText = response.analysis;
+                    modelInfo = response.model || 'AI Model';
+                }
+                else if (response.text) {
+                    aiResponseText = response.text;
+                    modelInfo = response.model || 'AI Model';
+                }
+                else {
+                    // If we have no text fields but success is true, show raw data
+                    console.warn('Response with no text fields:', response);
+                    aiResponseText = "I received your message but couldn't generate a proper response. The AI service might be experiencing issues.\n\n" +
+                        "Please try:\n" +
+                        "• Refreshing the page\n" +
+                        "• Checking your internet connection\n" +
+                        "• Trying again in a few moments\n\n" +
+                        "If the problem persists, please contact support.";
+                    modelInfo = response.model || 'System';
+                }
+            }
+            // Handle direct string response
+            else if (typeof response === 'string') {
+                aiResponseText = response;
+            }
+            // Handle error response
+            else if (response.error) {
+                throw new Error(response.error);
+            }
+            // Handle unknown format
+            else {
+                console.warn('Unexpected response format:', response);
+                aiResponseText = "I received an unexpected response format. Please try again or contact support.";
+            }
+
+            // Create AI message with the extracted text
+            const aiMessage = {
+                id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                text: aiResponseText,
+                sender: 'ai',
+                timestamp: response.timestamp || new Date().toISOString(),
+                model: response.model || modelInfo,
+                usage: response.usage // Include usage info if available
+            };
+
+            setMessages(prev => [...prev, aiMessage]);
+
+            // Log token usage if available (useful for debugging)
+            if (response.usage) {
+                console.log('📊 Token usage:', response.usage);
+            }
+
+        } catch (error) {
+            console.error('❌ Send message error:', error);
+
+            // Show user-friendly error message
+            let errorMessage = error.message || "I'm having trouble connecting. Please try again later.";
+
+            // Check for specific error types
+            if (errorMessage.includes('401')) {
+                errorMessage = 'Please log in to use the chat feature.';
+            } else if (errorMessage.includes('429')) {
+                errorMessage = 'Too many requests. Please wait a moment and try again.';
+            } else if (errorMessage.includes('network') || errorMessage.includes('connection')) {
+                errorMessage = 'Network error. Please check your internet connection.';
+            } else if (errorMessage.includes('500')) {
+                errorMessage = 'Server error. The AI service might be temporarily unavailable.';
+            }
+
+            toast.error(errorMessage);
+
+            // Add error message to chat
+            setMessages(prev => [...prev, {
+                id: `ai-error-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                text: errorMessage + "\n\nPlease try again in a few moments. If the issue persists, contact support.",
+                sender: 'ai',
+                timestamp: new Date().toISOString(),
+                isError: true,
+                model: 'System',
+            }]);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     const handleKeyPress = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSendMessage();
+            sendMessage();
         }
     };
 
-    const suggestedQuestions = [
-        "What foods should I avoid?",
-        "Best exercises for diabetes",
-        "How to manage medication",
-        "Common symptoms to watch",
-        "Blood sugar target ranges",
-        "Stress reduction tips",
-    ];
+    const handleVoiceInput = () => {
+        if (!isRecording) {
+            // Check if browser supports speech recognition
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                const recognition = new SpeechRecognition();
+
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+
+                recognition.onstart = () => {
+                    setIsRecording(true);
+                    toast.loading('Listening...', { id: 'voice' });
+                };
+
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    setInputMessage(transcript);
+                    setIsRecording(false);
+                    toast.success('Voice captured!', { id: 'voice' });
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Voice recognition error:', event.error);
+                    setIsRecording(false);
+
+                    let errorMessage = 'Voice recognition failed.';
+                    if (event.error === 'not-allowed') {
+                        errorMessage = 'Microphone access denied. Please allow microphone access.';
+                    } else if (event.error === 'no-speech') {
+                        errorMessage = 'No speech detected. Please try again.';
+                    }
+
+                    toast.error(errorMessage, { id: 'voice' });
+                };
+
+                recognition.onend = () => {
+                    setIsRecording(false);
+                    toast.dismiss('voice');
+                };
+
+                recognition.start();
+            } else {
+                toast.error('Voice input is not supported in your browser. Try Chrome or Edge.');
+            }
+        } else {
+            setIsRecording(false);
+            toast.dismiss('voice');
+        }
+    };
+
+    const formatTime = (timestamp) => {
+        return new Date(timestamp).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const formatDate = (timestamp) => {
+        const date = new Date(timestamp);
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        if (date.toDateString() === today.toDateString()) {
+            return 'Today';
+        } else if (date.toDateString() === yesterday.toDateString()) {
+            return 'Yesterday';
+        } else {
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
+    };
+
+    // Group messages by date
+    const groupedMessages = messages.reduce((groups, message) => {
+        const date = formatDate(message.timestamp);
+        if (!groups[date]) {
+            groups[date] = [];
+        }
+        groups[date].push(message);
+        return groups;
+    }, {});
+
+    if (loadingHistory) {
+        return (
+            <div className="flex justify-center items-center h-64">
+                <LoadingSpinner size="lg" />
+            </div>
+        );
+    }
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex flex-col h-[calc(100vh-12rem)] bg-white rounded-xl shadow-lg overflow-hidden">
             {/* Header */}
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex justify-between items-center"
-            >
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">AI Health Coach</h1>
-                    <p className="text-gray-600">Your personal AI assistant for diabetes management</p>
+            <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-4 text-white">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/20 rounded-full">
+                        <SparklesIcon className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h2 className="font-semibold text-lg">AI Health Coach</h2>
+                        <p className="text-sm text-white/80">Ask me anything about your health</p>
+                    </div>
+                    <div className="ml-auto flex items-center gap-2">
+                        <div className="bg-white/20 px-3 py-1 rounded-full text-xs">
+                            AI Powered
+                        </div>
+                        {/* Debug button - only in development */}
+                        {process.env.NODE_ENV === 'development' && (
+                            <button
+                                onClick={testConnection}
+                                className="bg-white/20 hover:bg-white/30 px-2 py-1 rounded-full text-xs transition-colors flex items-center gap-1"
+                                title="Test AI Connection"
+                            >
+                                <BeakerIcon className="w-3 h-3" />
+                                Debug
+                            </button>
+                        )}
+                    </div>
                 </div>
-                <div className="flex space-x-3">
-                    <button
-                        onClick={() => setActiveTab('chat')}
-                        className={`btn-secondary flex items-center space-x-2 ${activeTab === 'chat' ? 'bg-primary-600 text-white' : ''}`}
-                    >
-                        <ChatBubbleLeftRightIcon className="w-5 h-5" />
-                        <span>Chat</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('diet')}
-                        className={`btn-secondary flex items-center space-x-2 ${activeTab === 'diet' ? 'bg-primary-600 text-white' : ''}`}
-                    >
-                        <LightBulbIcon className="w-5 h-5" />
-                        <span>Diet Planner</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('medications')}
-                        className={`btn-secondary flex items-center space-x-2 ${activeTab === 'medications' ? 'bg-primary-600 text-white' : ''}`}
-                    >
-                        <BeakerIcon className="w-5 h-5" />
-                        <span>Medications</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('symptoms')}
-                        className={`btn-secondary flex items-center space-x-2 ${activeTab === 'symptoms' ? 'bg-primary-600 text-white' : ''}`}
-                    >
-                        <DocumentTextIcon className="w-5 h-5" />
-                        <span>Symptom Checker</span>
-                    </button>
-                </div>
-            </motion.div>
+            </div>
 
-            {/* Main Content */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-white rounded-xl shadow-soft border border-gray-100 overflow-hidden"
-            >
-                {activeTab === 'chat' && (
-                    <div className="flex flex-col h-[600px]">
-                        {/* Chat Header */}
-                        <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-4">
-                            <div className="flex items-center space-x-3">
-                                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-                                    <SparklesIcon className="w-6 h-6 text-primary-600" />
-                                </div>
-                                <div>
-                                    <h2 className="text-white font-semibold">AI Health Coach</h2>
-                                    <p className="text-primary-100 text-sm">Online • Ready to help</p>
-                                </div>
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50">
+                {messages.length === 0 ? (
+                    <div className="h-full flex items-center justify-center">
+                        <div className="text-center max-w-md">
+                            <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <ChatBubbleLeftRightIcon className="w-10 h-10 text-primary-600" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                Welcome to Your AI Health Coach
+                            </h3>
+                            <p className="text-gray-500 mb-6">
+                                I'm here to help you understand your health, suggest lifestyle changes,
+                                and answer your questions about diabetes prevention.
+                            </p>
+
+                            {/* Suggested Questions */}
+                            <div className="space-y-2">
+                                <p className="text-sm font-medium text-gray-700">Try asking:</p>
+                                {suggestedQuestions.map((question, index) => (
+                                    <motion.button
+                                        key={index}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: index * 0.1 }}
+                                        onClick={() => {
+                                            setInputMessage(question);
+                                            setTimeout(() => sendMessage(), 100);
+                                        }}
+                                        className="w-full p-3 text-left text-sm bg-white border border-gray-200 rounded-xl hover:border-primary-300 hover:shadow-md transition-all"
+                                    >
+                                        <span className="text-gray-700">{question}</span>
+                                    </motion.button>
+                                ))}
                             </div>
                         </div>
+                    </div>
+                ) : (
+                    <AnimatePresence>
+                        {Object.entries(groupedMessages).map(([date, dateMessages]) => (
+                            <div key={date} className="space-y-4">
+                                {/* Date Separator */}
+                                <div className="flex justify-center">
+                                    <span className="px-3 py-1 bg-gray-200 rounded-full text-xs text-gray-600">
+                                        {date}
+                                    </span>
+                                </div>
 
-                        {/* Messages */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            <AnimatePresence>
-                                {messages.map((message) => (
+                                {/* Messages for this date */}
+                                {dateMessages.map((message) => (
                                     <motion.div
                                         key={message.id}
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0 }}
-                                        className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                                        className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                                     >
-                                        <div
-                                            className={`max-w-[70%] rounded-lg p-3 ${message.type === 'user'
-                                                    ? 'bg-primary-600 text-white'
-                                                    : 'bg-gray-100 text-gray-900'
-                                                }`}
-                                        >
-                                            <p className="whitespace-pre-wrap">{message.content}</p>
-                                            <p className={`text-xs mt-1 ${message.type === 'user' ? 'text-primary-200' : 'text-gray-500'
+                                        <div className={`flex gap-3 max-w-[80%] ${message.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+                                            {/* Avatar */}
+                                            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${message.sender === 'user'
+                                                ? 'bg-primary-100'
+                                                : message.isError
+                                                    ? 'bg-red-100'
+                                                    : 'bg-gradient-to-br from-primary-500 to-primary-600'
                                                 }`}>
-                                                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
+                                                {message.sender === 'user' ? (
+                                                    <UserCircleIcon className="w-5 h-5 text-primary-600" />
+                                                ) : message.isError ? (
+                                                    <span className="text-red-600">⚠️</span>
+                                                ) : (
+                                                    <SparklesIcon className="w-4 h-4 text-white" />
+                                                )}
+                                            </div>
+
+                                            {/* Message Content */}
+                                            <div>
+                                                <div className={`rounded-2xl p-4 ${message.sender === 'user'
+                                                    ? 'bg-primary-600 text-white'
+                                                    : message.isError
+                                                        ? 'bg-red-50 border border-red-200 text-red-800'
+                                                        : 'bg-white border border-gray-200 shadow-sm text-gray-800'
+                                                    }`}>
+                                                    <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                                                </div>
+
+                                                {/* Footer */}
+                                                <div className="flex items-center gap-2 mt-1 px-2">
+                                                    <ClockIcon className="w-3 h-3 text-gray-400" />
+                                                    <p className="text-xs text-gray-400">
+                                                        {formatTime(message.timestamp)}
+                                                    </p>
+                                                    {message.model && !message.isError && message.sender === 'ai' && (
+                                                        <p className="text-xs text-gray-400 ml-auto">
+                                                            {typeof message.model === 'string' ? message.model.split('/').pop() : 'AI'}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     </motion.div>
                                 ))}
-                            </AnimatePresence>
-                            {loading && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className="flex justify-start"
-                                >
-                                    <div className="bg-gray-100 rounded-lg p-3">
-                                        <div className="flex space-x-2">
-                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
-                            <div ref={messagesEndRef} />
-                        </div>
-
-                        {/* Suggested Questions */}
-                        <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
-                            <p className="text-xs text-gray-500 mb-2">Suggested questions:</p>
-                            <div className="flex flex-wrap gap-2">
-                                {suggestedQuestions.map((question, index) => (
-                                    <button
-                                        key={index}
-                                        onClick={() => {
-                                            setInputMessage(question);
-                                            handleSendMessage();
-                                        }}
-                                        className="text-xs bg-white border border-gray-200 rounded-full px-3 py-1 text-gray-600 hover:bg-gray-50 transition-colors"
-                                    >
-                                        {question}
-                                    </button>
-                                ))}
                             </div>
-                        </div>
-
-                        {/* Input Area */}
-                        <div className="p-4 border-t border-gray-200">
-                            <div className="flex space-x-3">
-                                <textarea
-                                    value={inputMessage}
-                                    onChange={(e) => setInputMessage(e.target.value)}
-                                    onKeyPress={handleKeyPress}
-                                    placeholder="Ask me anything about diabetes management..."
-                                    className="flex-1 input-field resize-none"
-                                    rows="2"
-                                />
-                                <button
-                                    onClick={handleSendMessage}
-                                    disabled={!inputMessage.trim() || loading}
-                                    className="btn-primary px-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <PaperAirplaneIcon className="w-5 h-5" />
-                                </button>
-                            </div>
-                            <p className="text-xs text-gray-400 mt-2">
-                                Press Enter to send, Shift+Enter for new line
-                            </p>
-                        </div>
-                    </div>
+                        ))}
+                    </AnimatePresence>
                 )}
 
-                {activeTab === 'diet' && <DietPlanner />}
-                {activeTab === 'medications' && <MedicationTracker />}
-                {activeTab === 'symptoms' && <SymptomChecker />}
-            </motion.div>
+                {/* Loading indicator */}
+                {isLoading && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="flex justify-start"
+                    >
+                        <div className="flex gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
+                                <SparklesIcon className="w-4 h-4 text-white" />
+                            </div>
+                            <div className="bg-white border border-gray-200 rounded-2xl p-4">
+                                <LoadingSpinner size="sm" />
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+
+                <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input Area */}
+            <div className="bg-white border-t border-gray-200 p-4">
+                <div className="flex items-end gap-2">
+                    <div className="flex-1 relative">
+                        <textarea
+                            ref={inputRef}
+                            value={inputMessage}
+                            onChange={(e) => setInputMessage(e.target.value)}
+                            onKeyPress={handleKeyPress}
+                            placeholder="Ask your health coach..."
+                            rows="1"
+                            className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none resize-none"
+                            style={{ minHeight: '44px', maxHeight: '120px' }}
+                            disabled={isLoading}
+                        />
+
+                        {/* Voice input button */}
+                        <button
+                            onClick={handleVoiceInput}
+                            disabled={isLoading}
+                            className={`absolute right-3 bottom-2.5 p-1.5 rounded-lg transition-colors ${isRecording
+                                ? 'bg-red-500 text-white animate-pulse'
+                                : 'text-gray-400 hover:text-primary-600 hover:bg-gray-100'
+                                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title={isRecording ? 'Stop recording' : 'Start voice input'}
+                        >
+                            {isRecording ? (
+                                <StopIcon className="w-5 h-5" />
+                            ) : (
+                                <MicrophoneIcon className="w-5 h-5" />
+                            )}
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={sendMessage}
+                        disabled={!inputMessage.trim() || isLoading}
+                        className="p-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        title="Send message"
+                    >
+                        <PaperAirplaneIcon className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Context badges */}
+                <div className="flex items-center gap-2 mt-3 text-xs text-gray-500">
+                    <span>AI Health Coach •</span>
+                    <span>Personalized advice •</span>
+                    <span>Always consult your doctor</span>
+                </div>
+            </div>
         </div>
     );
 };
-
-// Placeholder components for other tabs
-const DietPlanner = () => (
-    <div className="p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Diet Planner</h2>
-        <p className="text-gray-600">Coming soon...</p>
-    </div>
-);
-
-const MedicationTracker = () => (
-    <div className="p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Medication Tracker</h2>
-        <p className="text-gray-600">Coming soon...</p>
-    </div>
-);
-
-const SymptomChecker = () => (
-    <div className="p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Symptom Checker</h2>
-        <p className="text-gray-600">Coming soon...</p>
-    </div>
-);
 
 export default ChatInterface;

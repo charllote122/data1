@@ -19,10 +19,12 @@ import {
     InformationCircleIcon,
     KeyIcon,
     DevicePhoneMobileIcon,
-    RefreshIcon,
-    MailOpenIcon,
+    ArrowPathIcon,
+    MailIcon,
     LockClosedIcon
 } from '@heroicons/react/24/outline';
+import Card from '../../components/Card';
+import Badge from '../../components/Badge';
 
 // Enhanced validation schema
 const schema = yup.object({
@@ -139,43 +141,34 @@ const ForgotPassword = () => {
             let response;
 
             if (data.resetMethod === 'email') {
-                // Call the email password reset endpoint
                 response = await authService.forgotPassword(data.email);
-                console.log('✅ Password reset email sent:', response);
-
                 showNotification(
                     'success',
-                    'Password reset instructions have been sent to your email!'
+                    'Password reset instructions have been sent to your email.'
                 );
             } else {
-                // Call the SMS password reset endpoint
                 response = await authService.forgotPasswordSms({
                     phone: data.phoneNumber,
                     email: data.email
                 });
-                console.log('✅ Password reset SMS sent:', response);
-
                 showNotification(
                     'success',
-                    'Password reset code has been sent to your phone!'
+                    'Password reset code has been sent to your phone.'
                 );
             }
 
             setSubmitted(true);
-            setResendCooldown(60); // Enable resend after 60 seconds
-            setAttemptCount(0); // Reset attempt count on success
+            setResendCooldown(60);
+            setAttemptCount(0);
 
-            // Store the contact method for resend
             sessionStorage.setItem('reset_contact', data.resetMethod === 'email' ? data.email : data.phoneNumber);
             sessionStorage.setItem('reset_method', data.resetMethod);
 
         } catch (error) {
-            console.error('❌ Password reset failed:', error);
+            console.error('Password reset failed:', error);
 
-            // Increment attempt count for progressive delay
             setAttemptCount(prev => prev + 1);
 
-            // Handle rate limiting (429 status code)
             if (error.response?.status === 429) {
                 setRateLimited(true);
                 const retryAfter = error.response.headers?.['retry-after'] || 300;
@@ -190,12 +183,10 @@ const ForgotPassword = () => {
                     `Rate limit exceeded. Please wait ${parseInt(retryAfter)} seconds.`
                 );
 
-                // Handle user not found
             } else if (error.response?.status === 404) {
                 setApiError('No account found with this email address.');
                 showNotification('error', 'No account found with this email address.');
 
-                // Handle validation errors
             } else if (error.response?.data?.email) {
                 const errorMsg = Array.isArray(error.response.data.email)
                     ? error.response.data.email[0]
@@ -210,7 +201,6 @@ const ForgotPassword = () => {
                 setApiError(errorMsg);
                 showNotification('error', errorMsg);
 
-                // Handle other errors
             } else {
                 const errorMessage = error.response?.data?.message ||
                     error.response?.data?.error ||
@@ -234,7 +224,6 @@ const ForgotPassword = () => {
             return;
         }
 
-        // Get stored contact info
         const storedContact = sessionStorage.getItem('reset_contact');
         const storedMethod = sessionStorage.getItem('reset_method');
 
@@ -254,7 +243,6 @@ const ForgotPassword = () => {
         setApiError('');
         setRateLimited(false);
         setAttemptCount(0);
-        // Clear the form
         setValue('email', '', { shouldValidate: false });
         setValue('phoneNumber', '', { shouldValidate: false });
         sessionStorage.removeItem('reset_contact');
@@ -265,7 +253,6 @@ const ForgotPassword = () => {
         setResetMethod(method);
         setValue('resetMethod', method);
         setApiError('');
-        // Trigger validation for the appropriate field
         if (method === 'sms') {
             trigger('phoneNumber');
         } else {
@@ -295,45 +282,33 @@ const ForgotPassword = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-md mx-auto">
-                {/* Back to home link */}
                 <Link
                     to={ROUTES.HOME}
-                    className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors group"
+                    className="inline-flex items-center gap-2 text-gray-600 hover:text-primary-600 mb-6 transition-colors group"
                 >
                     <ArrowLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                     Back to Home
                 </Link>
 
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-gray-100"
-                >
+                <Card className="overflow-hidden p-0">
                     {/* Decorative Header */}
-                    <div className="h-2 bg-gradient-to-r from-blue-500 via-blue-600 to-purple-600"></div>
+                    <div className="h-2 bg-gradient-to-r from-primary-500 via-primary-600 to-secondary-600"></div>
 
                     <div className="px-8 py-10">
-                        {/* Logo/Brand */}
+                        {/* Header */}
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             transition={{ delay: 0.2 }}
                             className="text-center mb-8"
                         >
-                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl 
-                                          bg-gradient-to-br from-blue-500 to-blue-600 text-white 
-                                          shadow-lg shadow-blue-500/30 mb-4">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/30 mb-4">
                                 <KeyIcon className="w-8 h-8" />
                             </div>
-                            <h2 className="text-3xl font-bold text-gray-900">
-                                Reset Password
-                            </h2>
-                            <p className="text-gray-600 mt-2">
-                                Choose how you'd like to reset your password
-                            </p>
+                            <h2 className="text-3xl font-bold text-gray-900">Reset Password</h2>
+                            <p className="text-gray-600 mt-2">Choose how you'd like to reset your password</p>
                         </motion.div>
 
                         <AnimatePresence mode="wait">
@@ -353,8 +328,8 @@ const ForgotPassword = () => {
                                         transition={{ type: "spring", stiffness: 200, damping: 20 }}
                                         className="mb-6 flex justify-center"
                                     >
-                                        <div className="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center">
-                                            <MailOpenIcon className="w-10 h-10 text-green-600" />
+                                        <div className="w-20 h-20 bg-success-100 rounded-2xl flex items-center justify-center">
+                                            <MailIcon className="w-10 h-10 text-success-600" />
                                         </div>
                                     </motion.div>
 
@@ -366,15 +341,15 @@ const ForgotPassword = () => {
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: 0.2 }}
-                                        className="bg-green-50 rounded-xl p-6 mb-6 border border-green-200"
+                                        className="bg-success-50 rounded-xl p-6 mb-6 border border-success-200"
                                     >
-                                        <p className="text-green-800 font-medium mb-2">
+                                        <p className="text-success-800 font-medium mb-2">
                                             We've sent instructions to:
                                         </p>
-                                        <p className="text-green-700 font-mono bg-green-100/50 py-2 px-4 rounded-lg break-all">
+                                        <p className="text-success-700 font-mono bg-success-100/50 py-2 px-4 rounded-lg break-all">
                                             {resetMethod === 'email' ? email : phoneNumber}
                                         </p>
-                                        <div className="flex items-center justify-center gap-2 mt-4 text-sm text-green-700">
+                                        <div className="flex items-center justify-center gap-2 mt-4 text-sm text-success-700">
                                             <ClockIcon className="w-4 h-4" />
                                             <span>Link expires in 24 hours</span>
                                         </div>
@@ -388,13 +363,7 @@ const ForgotPassword = () => {
                                     >
                                         <Link
                                             to={ROUTES.LOGIN}
-                                            className="block w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white 
-                                                     py-3 px-4 rounded-xl font-semibold
-                                                     hover:from-blue-700 hover:to-blue-800 
-                                                     focus:outline-none focus:ring-4 focus:ring-blue-300 
-                                                     transition-all duration-200 transform hover:scale-[1.02]
-                                                     shadow-lg shadow-blue-500/30
-                                                     inline-flex items-center justify-center gap-2"
+                                            className="block w-full bg-gradient-to-r from-primary-600 to-secondary-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-primary-700 hover:to-secondary-700 focus:outline-none focus:ring-4 focus:ring-primary-300 transition-all duration-200 transform hover:scale-105 shadow-lg shadow-primary-500/30 inline-flex items-center justify-center gap-2"
                                         >
                                             <ArrowLeftIcon className="w-5 h-5" />
                                             Return to Login
@@ -403,9 +372,7 @@ const ForgotPassword = () => {
                                         <motion.button
                                             variants={fadeInUp}
                                             onClick={handleTryDifferent}
-                                            className="w-full text-gray-600 hover:text-gray-800 
-                                                     py-2 px-4 rounded-lg text-sm font-medium
-                                                     transition-colors"
+                                            className="w-full text-gray-600 hover:text-gray-800 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
                                             disabled={rateLimited}
                                         >
                                             Try a different {resetMethod === 'email' ? 'email' : 'phone number'}
@@ -419,10 +386,10 @@ const ForgotPassword = () => {
                                                 className={`text-sm transition-colors flex items-center justify-center gap-2 mx-auto
                                                     ${resendCooldown > 0
                                                         ? 'text-gray-400 cursor-not-allowed'
-                                                        : 'text-blue-600 hover:text-blue-700'
+                                                        : 'text-primary-600 hover:text-primary-700'
                                                     }`}
                                             >
-                                                <RefreshIcon className={`w-4 h-4 ${resendCooldown > 0 ? '' : 'animate-spin'}`} />
+                                                <ArrowPathIcon className={`w-4 h-4 ${resendCooldown > 0 ? '' : 'animate-spin'}`} />
                                                 {resendCooldown > 0
                                                     ? `Resend available in ${formatTime(resendCooldown)}`
                                                     : 'Resend instructions'
@@ -436,11 +403,11 @@ const ForgotPassword = () => {
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
                                         transition={{ delay: 0.4 }}
-                                        className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200"
+                                        className="mt-6 p-4 bg-info-50 rounded-lg border border-info-200"
                                     >
                                         <div className="flex items-start gap-3">
-                                            <InformationCircleIcon className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                            <p className="text-xs text-blue-700 text-left">
+                                            <InformationCircleIcon className="w-5 h-5 text-info-600 flex-shrink-0 mt-0.5" />
+                                            <p className="text-xs text-info-700 text-left">
                                                 <span className="font-medium">Didn't receive it?</span>
                                                 <br />
                                                 • Check your spam or promotions folder
@@ -468,11 +435,10 @@ const ForgotPassword = () => {
                                                 initial={{ opacity: 0, y: -10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, y: -10 }}
-                                                className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl 
-                                                         flex items-start gap-3"
+                                                className="mb-6 p-4 bg-error-50 border border-error-200 rounded-xl flex items-start gap-3"
                                             >
-                                                <ExclamationCircleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                                                <p className="text-sm text-red-700">{apiError}</p>
+                                                <ExclamationCircleIcon className="w-5 h-5 text-error-600 flex-shrink-0 mt-0.5" />
+                                                <p className="text-sm text-error-700">{apiError}</p>
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
@@ -484,15 +450,14 @@ const ForgotPassword = () => {
                                                 initial={{ opacity: 0, y: -10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, y: -10 }}
-                                                className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl 
-                                                         flex items-start gap-3"
+                                                className="mb-6 p-4 bg-warning-50 border border-warning-200 rounded-xl flex items-start gap-3"
                                             >
-                                                <ClockIcon className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                                                <ClockIcon className="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-sm text-yellow-700 font-medium">
+                                                    <p className="text-sm text-warning-700 font-medium">
                                                         Too many requests
                                                     </p>
-                                                    <p className="text-xs text-yellow-600 mt-1">
+                                                    <p className="text-xs text-warning-600 mt-1">
                                                         Please wait {formatTime(cooldownSeconds)} before trying again.
                                                     </p>
                                                 </div>
@@ -511,7 +476,7 @@ const ForgotPassword = () => {
                                                 onClick={() => handleMethodChange('email')}
                                                 className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all
                                                     ${currentResetMethod === 'email'
-                                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                        ? 'border-primary-500 bg-primary-50 text-primary-700'
                                                         : 'border-gray-200 hover:border-gray-300 text-gray-600'
                                                     }`}
                                             >
@@ -523,7 +488,7 @@ const ForgotPassword = () => {
                                                 onClick={() => handleMethodChange('sms')}
                                                 className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all
                                                     ${currentResetMethod === 'sms'
-                                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                        ? 'border-primary-500 bg-primary-50 text-primary-700'
                                                         : 'border-gray-200 hover:border-gray-300 text-gray-600'
                                                     }`}
                                             >
@@ -537,10 +502,10 @@ const ForgotPassword = () => {
                                     <motion.div
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-200"
+                                        className="mb-6 p-4 bg-info-50 rounded-xl border border-info-200"
                                     >
-                                        <p className="text-sm text-blue-700 flex items-start gap-2">
-                                            <InformationCircleIcon className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                                        <p className="text-sm text-info-700 flex items-start gap-2">
+                                            <InformationCircleIcon className="w-5 h-5 text-info-600 flex-shrink-0" />
                                             <span>
                                                 {currentResetMethod === 'email'
                                                     ? "We'll send a password reset link to your email address. The link will expire in 24 hours."
@@ -558,19 +523,17 @@ const ForgotPassword = () => {
                                             </label>
                                             <div className="relative">
                                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                    <EnvelopeIcon className={`h-5 w-5 ${errors.email ? 'text-red-400' : 'text-gray-400'
-                                                        }`} />
+                                                    <EnvelopeIcon className={`h-5 w-5 ${errors.email ? 'text-error-400' : 'text-gray-400'}`} />
                                                 </div>
                                                 <input
                                                     {...register('email')}
                                                     type="email"
-                                                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl 
-                                                               focus:outline-none focus:ring-4 transition-all duration-200
-                                                               ${errors.email
-                                                            ? 'border-red-300 focus:ring-red-100 focus:border-red-500'
-                                                            : 'border-gray-200 focus:ring-blue-100 focus:border-blue-500'
+                                                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-4 transition-all duration-200
+                                                        ${errors.email
+                                                            ? 'border-error-300 focus:ring-error-100 focus:border-error-500'
+                                                            : 'border-gray-200 focus:ring-primary-100 focus:border-primary-500'
                                                         }
-                                                               ${loading || rateLimited ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                        ${loading || rateLimited ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                     placeholder="you@example.com"
                                                     disabled={loading || rateLimited}
                                                     autoComplete="email"
@@ -583,7 +546,7 @@ const ForgotPassword = () => {
                                                     initial={{ opacity: 0 }}
                                                     animate={{ opacity: 1 }}
                                                     id="email-error"
-                                                    className="mt-2 text-sm text-red-600 flex items-center gap-1"
+                                                    className="mt-2 text-sm text-error-600 flex items-center gap-1"
                                                 >
                                                     <ExclamationCircleIcon className="w-4 h-4" />
                                                     {errors.email.message}
@@ -600,23 +563,21 @@ const ForgotPassword = () => {
                                                     exit={{ opacity: 0, height: 0 }}
                                                 >
                                                     <label htmlFor="phoneNumber" className="block text-sm font-semibold text-gray-700 mb-2">
-                                                        Phone Number <span className="text-red-500">*</span>
+                                                        Phone Number <span className="text-error-500">*</span>
                                                     </label>
                                                     <div className="relative">
                                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                            <DevicePhoneMobileIcon className={`h-5 w-5 ${errors.phoneNumber ? 'text-red-400' : 'text-gray-400'
-                                                                }`} />
+                                                            <DevicePhoneMobileIcon className={`h-5 w-5 ${errors.phoneNumber ? 'text-error-400' : 'text-gray-400'}`} />
                                                         </div>
                                                         <input
                                                             {...register('phoneNumber')}
                                                             type="tel"
-                                                            className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl 
-                                                                       focus:outline-none focus:ring-4 transition-all duration-200
-                                                                       ${errors.phoneNumber
-                                                                    ? 'border-red-300 focus:ring-red-100 focus:border-red-500'
-                                                                    : 'border-gray-200 focus:ring-blue-100 focus:border-blue-500'
+                                                            className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-4 transition-all duration-200
+                                                                ${errors.phoneNumber
+                                                                    ? 'border-error-300 focus:ring-error-100 focus:border-error-500'
+                                                                    : 'border-gray-200 focus:ring-primary-100 focus:border-primary-500'
                                                                 }
-                                                                       ${loading || rateLimited ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                                ${loading || rateLimited ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                             placeholder="+1234567890"
                                                             disabled={loading || rateLimited}
                                                             autoComplete="tel"
@@ -626,7 +587,7 @@ const ForgotPassword = () => {
                                                         <motion.p
                                                             initial={{ opacity: 0 }}
                                                             animate={{ opacity: 1 }}
-                                                            className="mt-2 text-sm text-red-600 flex items-center gap-1"
+                                                            className="mt-2 text-sm text-error-600 flex items-center gap-1"
                                                         >
                                                             <ExclamationCircleIcon className="w-4 h-4" />
                                                             {errors.phoneNumber.message}
@@ -645,14 +606,7 @@ const ForgotPassword = () => {
                                             whileTap={{ scale: 0.98 }}
                                             type="submit"
                                             disabled={loading || rateLimited || isSubmitting}
-                                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white 
-                                                     py-3 px-4 rounded-xl font-semibold text-lg
-                                                     hover:from-blue-700 hover:to-blue-800 
-                                                     focus:outline-none focus:ring-4 focus:ring-blue-300 
-                                                     disabled:opacity-50 disabled:cursor-not-allowed
-                                                     transition-all duration-200 transform hover:scale-[1.02]
-                                                     shadow-lg shadow-blue-500/30
-                                                     flex items-center justify-center gap-2"
+                                            className="w-full bg-gradient-to-r from-primary-600 to-secondary-600 text-white py-3 px-4 rounded-xl font-semibold text-lg hover:from-primary-700 hover:to-secondary-700 focus:outline-none focus:ring-4 focus:ring-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow-lg shadow-primary-500/30 flex items-center justify-center gap-2"
                                         >
                                             {loading ? (
                                                 <>
@@ -705,7 +659,7 @@ const ForgotPassword = () => {
                                                     <div className="border-t border-gray-200 my-2"></div>
                                                     <Link
                                                         to="/contact"
-                                                        className="text-xs text-blue-600 hover:text-blue-700 hover:underline block text-center"
+                                                        className="text-xs text-primary-600 hover:text-primary-700 hover:underline block text-center"
                                                     >
                                                         Still having trouble? Contact Support
                                                     </Link>
@@ -717,8 +671,7 @@ const ForgotPassword = () => {
                                         <div className="text-center">
                                             <Link
                                                 to={ROUTES.LOGIN}
-                                                className="inline-flex items-center gap-2 text-sm text-gray-600 
-                                                           hover:text-blue-600 transition-colors group"
+                                                className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-primary-600 transition-colors group"
                                             >
                                                 <ArrowLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                                                 Back to Login
@@ -732,40 +685,17 @@ const ForgotPassword = () => {
                                             Need help? {' '}
                                             <Link
                                                 to="/contact"
-                                                className="text-blue-600 hover:text-blue-700 hover:underline"
+                                                className="text-primary-600 hover:text-primary-700 hover:underline"
                                             >
                                                 Contact Support
                                             </Link>
                                         </p>
                                     </div>
-
-                                    {/* Development Info */}
-                                    {import.meta.env.DEV && (
-                                        <motion.div
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200"
-                                        >
-                                            <p className="text-xs text-gray-500 font-mono text-center">
-                                                <span className="font-bold text-gray-700">Dev Mode:</span>{' '}
-                                                {currentResetMethod === 'email'
-                                                    ? 'Password reset emails appear in console/terminal'
-                                                    : 'SMS codes appear in console (twilio simulator)'
-                                                }
-                                            </p>
-                                            <p className="text-xs text-gray-500 text-center mt-1 break-all">
-                                                API: {import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}
-                                            </p>
-                                            <p className="text-xs text-gray-500 text-center mt-1">
-                                                Attempts: {attemptCount}/5
-                                            </p>
-                                        </motion.div>
-                                    )}
                                 </motion.div>
                             )}
                         </AnimatePresence>
                     </div>
-                </motion.div>
+                </Card>
 
                 {/* Trust badges */}
                 <motion.div
@@ -775,11 +705,11 @@ const ForgotPassword = () => {
                     className="mt-8 flex flex-wrap items-center justify-center gap-6 text-xs text-gray-500"
                 >
                     <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm">
-                        <ShieldCheckIcon className="w-4 h-4 text-green-600" />
+                        <ShieldCheckIcon className="w-4 h-4 text-success-600" />
                         <span>Secure Reset</span>
                     </div>
                     <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm">
-                        <ClockIcon className="w-4 h-4 text-blue-600" />
+                        <ClockIcon className="w-4 h-4 text-info-600" />
                         <span>24h Link Expiry</span>
                     </div>
                     <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm">

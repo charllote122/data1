@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useHealth } from '../../context/HealthContext';
 import { useNotification } from '../../context/NotificationContext';
-import predictionsService from '../../services/predictions';
+import api from '../../services/api';
 import SignupPrompt from '../../components/SignupPrompt';
 import FormSteps from '../../components/FormSteps';
 import { ROUTES } from '../../constants/routes';
@@ -127,8 +127,6 @@ const PredictionForm = () => {
             }));
 
             setProfileLoaded(true);
-
-            // Show notification that profile data was loaded
             showNotification('info', 'Your profile data has been pre-filled. You can update it for this assessment.');
         }
     }, [user, profile, profileLoaded, showNotification]);
@@ -166,7 +164,7 @@ const PredictionForm = () => {
 
     const loadFeatureInfo = async () => {
         try {
-            const info = await predictionsService.getFeatureInfo();
+            const info = await api.getFeatureInfo();
             setFeatureInfo(info);
         } catch (error) {
             console.error('Failed to load feature info:', error);
@@ -377,7 +375,7 @@ const PredictionForm = () => {
             if (user) {
                 // Authenticated prediction
                 console.log('Creating authenticated prediction');
-                result = await predictionsService.createPrediction(submitData);
+                result = await api.predictions(submitData, 'POST');
 
                 showNotification('success', 'Assessment completed successfully!');
 
@@ -388,7 +386,7 @@ const PredictionForm = () => {
             } else {
                 // Public prediction
                 console.log('Creating public prediction');
-                result = await predictionsService.getPublicPrediction(submitData);
+                result = await api.publicPredict(submitData);
 
                 console.log('API Response:', result);
 
@@ -412,7 +410,7 @@ const PredictionForm = () => {
                     remainingAttempts: result.meta?.remaining_attempts
                 });
 
-                navigate('/prediction/result', {
+                navigate(ROUTES.PREDICTIONS.RESULT, {
                     state: {
                         result: predictionResult,
                         formData: submitData,
@@ -448,7 +446,7 @@ const PredictionForm = () => {
                 navigate(ROUTES.LOGIN, {
                     state: {
                         from: ROUTES.PREDICTIONS.NEW,
-                        assessmentData: formData,
+                        savedData: formData,
                         message: 'Sign in to save your assessment results!'
                     }
                 });

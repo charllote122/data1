@@ -1,3 +1,4 @@
+# backend/urls.py
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -12,6 +13,8 @@ urlpatterns = [
     path('api/symptoms/', include('user_symptoms.urls')),
     path('api/resources/', include('health_resources.urls')),
     path('api/dashboard/', include('user_dashboard.urls')),
+    # ADD THIS LINE - include AI app URLs
+    path('api/ai/', include('ai.urls')),
 ]
 
 if settings.DEBUG:
