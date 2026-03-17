@@ -22,7 +22,7 @@ class DiabetesPredictor:
         self.metadata = None
         self.feature_names = []
         self.load_models()
-        logger.info(f"✅ DiabetesPredictor initialized with model version {self.model_version}")
+        logger.info(f" DiabetesPredictor initialized with model version {self.model_version}")
     
     def load_models(self):
         """Load all model artifacts with multiple fallback methods"""

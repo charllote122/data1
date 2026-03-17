@@ -16,6 +16,7 @@ import sys
 from dotenv import load_dotenv
 import logging
 from datetime import timedelta
+import dj_database_url
 
 # Load environment variables
 load_dotenv()
@@ -28,12 +29,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-oakzofm6_6wivmxwxrw37j4ff&pqoltbp_d6mlcn6^o7bz^5+f')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY and DEBUG:
+    # Only use fallback in development
+    SECRET_KEY = 'django-insecure-oakzofm6_6wivmxwxrw37j4ff&pqoltbp_d6mlcn6^o7bz^5+f'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# Add Render domain if in production
+if not DEBUG:
+    RENDER_EXTERNAL_HOSTNAME = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+    if RENDER_EXTERNAL_HOSTNAME:
+        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 
 # Application definition
@@ -53,6 +62,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
+    'whitenoise',  # Added for static files in production
     
     # Your custom apps
     'api',
@@ -63,11 +73,12 @@ INSTALLED_APPS = [
     'user_symptoms',
     'health_resources',
     'user_dashboard',
-    'ai',  # New AI app for health coach features
+    'ai',  # AI app for health coach features
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Added for static files
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -99,12 +110,25 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+
+# Use DATABASE_URL from environment (provided by Render) or fallback to SQLite for development
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=not DEBUG
+        )
     }
-}
+else:
+    # Fallback to SQLite for local development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -164,7 +188,7 @@ AUTH_USER_MODEL = 'users.User'
 # CORS SETTINGS
 # ============================================================================
 
-# CORS Settings (for React frontend)
+# CORS Settings (for React frontend on Vercel)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -173,6 +197,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5174",
     "http://127.0.0.1:5174",
 ]
+
+# Add Vercel frontend URL if in production
+FRONTEND_URL = os.getenv('FRONTEND_URL')
+if FRONTEND_URL:
+    CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -278,7 +307,7 @@ SIMPLE_JWT = {
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
 SESSION_COOKIE_NAME = 'sessionid'
-SESSION_COOKIE_SECURE = False  # Set to False for development with HTTP
+SESSION_COOKIE_SECURE = not DEBUG  # True in production
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_SAVE_EVERY_REQUEST = True
@@ -286,39 +315,38 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # CSRF settings
 CSRF_COOKIE_NAME = 'csrftoken'
-CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = not DEBUG  # True in production
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-]
+
+# Build CSRF trusted origins from allowed origins
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
+if FRONTEND_URL:
+    CSRF_TRUSTED_ORIGINS.append(FRONTEND_URL)
 
 # ============================================================================
-# DEVELOPMENT EMAIL SETTINGS - VERIFICATION DISABLED
+# EMAIL SETTINGS
 # ============================================================================
 
-# Email settings for development - simplified
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Prints to console
+if DEBUG:
+    # Development email settings
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    ACCOUNT_EMAIL_VERIFICATION = 'none'
+    ACCOUNT_EMAIL_REQUIRED = False
+else:
+    # Production email settings - configure with your email provider
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@diabetes-app.com')
+    ACCOUNT_EMAIL_VERIFICATION = 'optional'
+    ACCOUNT_EMAIL_REQUIRED = True
 
-# Email verification settings - DISABLED FOR DEVELOPMENT
-ACCOUNT_EMAIL_VERIFICATION = 'none'  # Options: 'mandatory', 'optional', 'none'
-ACCOUNT_EMAIL_REQUIRED = False  # Make email optional for development
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
 ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Diabetes App] '
-
-# For production, you can uncomment these when ready
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = 'smtp.sendgrid.net'  # or your preferred provider
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = 'apikey'
-# EMAIL_HOST_PASSWORD = os.getenv('SENDGRID_API_KEY')
-# DEFAULT_FROM_EMAIL = 'Diabetes App <noreply@yourdomain.com>'
 
 # Site URL for email links
 SITE_URL = os.getenv('SITE_URL', 'http://localhost:8000')
@@ -510,19 +538,6 @@ CACHES = {
     }
 }
 
-# Alternative: File-based cache (persists between server restarts)
-# Uncomment if you want cache to survive server restarts
-# CACHES = {
-#     'default': {
-#         'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
-#         'LOCATION': os.path.join(BASE_DIR, 'django_cache'),
-#         'TIMEOUT': 300,
-#         'OPTIONS': {
-#             'MAX_ENTRIES': 1000
-#         }
-#     }
-# }
-
 # Session cache
 SESSION_CACHE_ALIAS = 'default'
 
@@ -541,7 +556,7 @@ OPENROUTER_BASE_URL = os.getenv('OPENROUTER_BASE_URL', 'https://openrouter.ai/ap
 OPENROUTER_DEFAULT_MODEL = os.getenv('OPENROUTER_DEFAULT_MODEL', 'google/gemma-3-12b-it:free')
 
 # Your site info for OpenRouter (helps them track usage)
-OPENROUTER_SITE_URL = os.getenv('OPENROUTER_SITE_URL', 'http://localhost:8000')
+OPENROUTER_SITE_URL = os.getenv('OPENROUTER_SITE_URL', SITE_URL)
 OPENROUTER_SITE_NAME = os.getenv('OPENROUTER_SITE_NAME', 'Diabetes Health Coach')
 
 # Available models for different features
@@ -598,17 +613,6 @@ if not DEBUG:
     LOGGING['root']['level'] = 'WARNING'
     LOGGING['loggers']['django']['level'] = 'WARNING'
     LOGGING['loggers']['ai']['level'] = 'INFO'  # Keep AI logging for monitoring
-    
-    # Production email settings (uncomment when ready)
-    # EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    # EMAIL_HOST = 'smtp.sendgrid.net'
-    # EMAIL_PORT = 587
-    # EMAIL_USE_TLS = True
-    # EMAIL_HOST_USER = 'apikey'
-    # EMAIL_HOST_PASSWORD = os.getenv('SENDGRID_API_KEY')
-    # DEFAULT_FROM_EMAIL = 'Diabetes App <noreply@yourdomain.com>'
-    # ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
-    # ACCOUNT_EMAIL_REQUIRED = True
 
 # ============================================================================
 # CUSTOM APP SPECIFIC SETTINGS
@@ -633,3 +637,9 @@ MIN_FEATURE_IMPORTANCE = float(os.getenv('MIN_FEATURE_IMPORTANCE', 0.05))
 # API rate limiting
 RATE_LIMIT_PUBLIC_PREDICTIONS = '3/hour'
 RATE_LIMIT_AUTH_PREDICTIONS = '100/hour'
+
+# ML Model paths
+ML_MODELS_DIR = BASE_DIR / 'ml_models'
+MODEL_PATH = ML_MODELS_DIR / 'model.pkl'
+SCALER_PATH = ML_MODELS_DIR / 'scaler.pkl'
+FEATURE_NAMES_PATH = ML_MODELS_DIR / 'feature_names.json'

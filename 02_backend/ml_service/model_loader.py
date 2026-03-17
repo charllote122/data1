@@ -19,13 +19,11 @@ try:
     # Store the original function
     original_check_array = check_array
     
-    # Create a patched version that handles both parameter names
     def patched_check_array(array, *args, **kwargs):
         if 'force_all_finite' in kwargs and 'ensure_all_finite' not in kwargs:
             kwargs['ensure_all_finite'] = kwargs.pop('force_all_finite')
         return original_check_array(array, *args, **kwargs)
     
-    # Replace the function in sklearn.utils.validation
     import sklearn.utils.validation
     sklearn.utils.validation.check_array = patched_check_array
     
